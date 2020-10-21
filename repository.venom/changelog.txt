@@ -1,0 +1,14 @@
+[B][COLOR red]Update - v1.12 – Sept. 26, 2020[/COLOR][/B]
+[COLOR yellow]--[/COLOR][I] fix incorrect version bump.[/I]
+
+[B][COLOR red]Update - v1.9 - Aug 15, 2020[/COLOR][/B]
+[COLOR yellow]--[/COLOR][I] Added AutoWidgets.[/I]
+[COLOR yellow]--[/COLOR][I] Added a4kSubtitles.[/I]
+
+[B][COLOR red]Update - v1.8 - May 24, 2020[/COLOR][/B]
+[COLOR yellow]--[/COLOR][I] Added OpenWizard repository.[/I]
+[COLOR yellow]--[/COLOR][I] Added Auramod repository.[/I]
+
+[B][COLOR red]Update - v1.7 - April 1, 2020[/COLOR][/B]
+[COLOR yellow]--[/COLOR][I] Added gujal-resolveURL to repo since he's taking over
+    for jsergio.[/I]
