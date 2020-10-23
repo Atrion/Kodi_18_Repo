@@ -108,6 +108,25 @@
     </extension>
 </addon>
 
+<addon id="repository.jurialmunkey" name="jurialmunkey Alpha Repository" version="1.4-leia" provider-name="jurialmunkey">
+    <extension point="xbmc.addon.repository" name="jurialmunkey Alpha Repository">
+        <dir>
+            <info compressed="false">https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/master/zips/addons.xml</info>
+            <checksum>https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/master/zips/addons.xml.md5</checksum>
+            <datadir zip="true">https://raw.githubusercontent.com/jurialmunkey/repository.jurialmunkey/master/zips/</datadir>
+        </dir>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary>jurialmunkey Alpha Repository</summary>
+        <description>A repository for alpha releases of jurialmunkey's skins.</description>
+        <disclaimer></disclaimer>
+        <platform>all</platform>
+        <assets>
+            <icon>icon.png</icon>
+        </assets>
+    </extension>
+</addon>
+
 <addon id="repository.venom" name="[COLOR red]Venom[/COLOR] Repository" version="1.12" provider-name="Venom">
 	<extension point="xbmc.addon.repository" name="Venom Repo">
 
@@ -203,6 +222,108 @@
 	</extension>
 </addon>
 
+<addon id="plugin.video.themoviedb.helper"
+version="3.3.21"
+name="TheMovieDb Helper"
+provider-name="jurialmunkey">
+<requires>
+  <import addon="xbmc.python" version="2.26.0"/>
+  <import addon="script.module.simplecache" version="1.0.11" />
+  <import addon="script.module.requests" version="2.9.1"/>
+  <import addon="script.module.pil" version="1.1.7"/>
+</requires>
+<extension point="xbmc.python.pluginsource" library="plugin.py">
+  <provides>video</provides>
+</extension>
+<extension point="xbmc.service" library="service.py" />
+<extension point="xbmc.python.script" library="script.py" />
+<extension point="kodi.context.item">
+  <menu id="kodi.core.main">
+    <item library="context-play.py">
+      <label>$ADDON[plugin.video.themoviedb.helper 32146]</label>
+      <visible>[String.IsEqual(ListItem.dbtype,episode) + !String.IsEmpty(ListItem.Season) + !String.IsEmpty(ListItem.Episode)] | [String.IsEqual(ListItem.dbtype,movie)]</visible>
+    </item>
+    <item library="context-open.py">
+      <label>$ADDON[plugin.video.themoviedb.helper 32147]</label>
+      <visible>String.IsEqual(ListItem.dbtype,episode) + !String.IsEmpty(ListItem.Property(tvshow.tmdb_id))</visible>
+    </item>
+    <menu>
+      <label>$ADDON[plugin.video.themoviedb.helper 32145]</label>
+      <item library="context-watchlist.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32148]</label>
+        <visible>!String.IsEmpty(ListItem.Property(Container.Info)) + !String.IsEmpty(Window(Home).Property(TMDbHelper.TraktIsAuth)) + !String.IsEmpty(ListItem.Property(tmdb_id)) + [String.IsEqual(ListItem.dbtype,episode) | String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow)]</visible>
+      </item>
+      <item library="context-history.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32149]</label>
+        <visible>!String.IsEmpty(ListItem.Property(Container.Info)) + !String.IsEmpty(Window(Home).Property(TMDbHelper.TraktIsAuth)) + !String.IsEmpty(ListItem.Property(tmdb_id)) + [String.IsEqual(ListItem.dbtype,episode) | String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow)]</visible>
+      </item>
+      <item library="context-collection.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32150]</label>
+        <visible>!String.IsEmpty(ListItem.Property(Container.Info)) + !String.IsEmpty(Window(Home).Property(TMDbHelper.TraktIsAuth)) + !String.IsEmpty(ListItem.Property(tmdb_id)) + [String.IsEqual(ListItem.dbtype,episode) | String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow)]</visible>
+      </item>
+      <item library="context-library.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32151]</label>
+        <visible>!String.IsEmpty(ListItem.Property(Container.Info)) + !String.IsEmpty(ListItem.Property(tmdb_id)) + [String.IsEqual(ListItem.dbtype,episode) | String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow) | String.IsEqual(ListItem.dbtype,season)]</visible>
+      </item>
+      <item library="context-library-userlist.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32151]</label>
+        <visible>!String.IsEmpty(ListItem.Property(Container.Info)) + String.IsEqual(ListItem.Property(Item.Info),trakt_userlist)</visible>
+      </item>
+      <item library="context-addtouserlist.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32140]</label>
+        <visible>!String.IsEmpty(Window(Home).Property(TMDbHelper.TraktIsAuth)) + [String.IsEqual(ListItem.dbtype,episode) | String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow)] + [!String.IsEmpty(ListItem.Property(tmdb_id)) | !String.IsEmpty(ListItem.DBID)]</visible>
+      </item>
+      <item library="context-removefromuserlist.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32152]</label>
+        <visible>!String.IsEmpty(Window(Home).Property(TMDbHelper.TraktIsAuth)) + !String.IsEmpty(Window(Home).Property(TMDbHelper.TraktUserSlug)) + !String.IsEmpty(ListItem.Property(Container.User_Slug)) + !String.IsEmpty(ListItem.Property(Container.List_Slug)) + String.IsEqual(Window(Home).Property(TMDbHelper.TraktUserSlug),ListItem.Property(Container.User_Slug))</visible>
+      </item>
+      <item library="context-refresh-item.py">
+        <label>$ADDON[plugin.video.themoviedb.helper 32153]</label>
+        <visible>!String.IsEmpty(ListItem.Property(Container.Info)) + !String.IsEmpty(ListItem.Property(tmdb_id)) + [String.IsEqual(ListItem.dbtype,episode) | String.IsEqual(ListItem.dbtype,movie) | String.IsEqual(ListItem.dbtype,tvshow)]</visible>
+      </item>
+    </menu>
+  </menu>
+</extension>
+<extension point="xbmc.addon.metadata">
+  <summary lang="en_GB">TheMovieDb Helper - Now With Trakt Support!</summary>
+  <summary lang="es_ES">TheMovieDb Helper - ¡Ahora con soporte para Trakt!</summary>
+  <description lang="en_GB">TheMovieDb Helper provides details about movies, tvshows and actors from TMDb. Users can access a variety of lists from TMDb and Trakt.</description>
+  <description lang="es_ES">TheMovieDb Helper proporciona detalles sobre películas, programas de televisión y actores de TMDb. Los usuarios pueden acceder a una variedad de listas desde TMDb y Trakt.</description>
+  <disclaimer lang="en_GB">Provided by TheMovieDb and Trakt.</disclaimer>
+  <disclaimer lang="es_ES">Proporcionado por TheMovieDb y Trakt</disclaimer>
+  <license>GPL-3.0-or-later</license>
+  <website>https://github.com/jurialmunkey/plugin.video.themoviedb.helper</website>
+  <forum>https://forum.kodi.tv/showthread.php?tid=345847</forum>
+  <assets>
+    <icon>icon.png</icon>
+    <fanart>fanart.jpg</fanart>
+    <screenshot>resources/screenshot-01.jpg</screenshot>
+    <screenshot>resources/screenshot-02.jpg</screenshot>
+  </assets>
+  <news>Add some additional dbid checking based on title/year combo</news>
+</extension>
+</addon>
+
+<addon id="repository.rector.stuff" name="Rector Stuff (old Python 2 for Kodi 15 - 18)" version="1.0.1" provider-name="rmrector">
+	<requires>
+		<import addon="xbmc.addon" version="12.0.0"/>
+	</requires>
+	<extension point="xbmc.addon.repository" name="Rector Repository">
+		<info>https://raw.githubusercontent.com/rmrector/repository.rector.stuff/python2/addons.xml</info>
+		<checksum>https://raw.githubusercontent.com/rmrector/repository.rector.stuff/python2/addons.xml.md5</checksum>
+		<datadir zip="true">https://raw.githubusercontent.com/rmrector/repository.rector.stuff/python2/</datadir>
+	</extension>
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en">A little place for my stuff.</summary>
+		<description lang="en">I'm Rector, I do stuff, I put it here.</description>
+		<platform>all</platform>
+		<disclaimer />
+		<assets>
+			<icon>icon.png</icon>
+		</assets>
+	</extension>
+</addon>
+
 <addon id="repository.tempest" name="Tempest Repo" version="0.0.5" provider-name="Tempest">
 	<extension point="xbmc.addon.repository" name="Tempest Repo">
         <info compressed="false">https://raw.githubusercontent.com/Tempest0580/tempest/master/zips/addons.xml</info>
@@ -213,6 +334,32 @@
 		<summary lang="en">kodi addon</summary>
 		<description lang="en">Watch Movies and Tv Shows</description>
 		<genre>movies,tvshows,usa</genre>
+	</extension>
+</addon>
+
+<addon id="resource.images.moviegenreicons.horizon" name="Movie Genre Icons - Horizon" version="0.0.1" provider-name="Swageroni_">
+	<extension point="kodi.resource.images" compile="true" type="moviegenreicons" />
+	<requires>
+		<import addon="kodi.resource" version="1.0.0"/>
+	</requires>
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en">Horizon Movie Genre Icons</summary>
+		<description lang="en">Movie Genre Icons for Horizon skin</description>
+		<platform>all</platform>
+	</extension>
+</addon>
+
+<addon id="repository.marcelveldt" version="1.0.1" name="Marcelveldt's BETA repository" provider-name="marcelveldt">
+
+	<extension point="xbmc.addon.repository" name="Marcelveldt's BETA repository">
+		<info compressed="false">https://raw.githubusercontent.com/marcelveldt/repository.marcelveldt/master/addons.xml</info>
+		<checksum>https://raw.githubusercontent.com/marcelveldt/repository.marcelveldt/master/addons.xml.md5</checksum>
+		<datadir zip="true">https://raw.githubusercontent.com/marcelveldt/repository.marcelveldt/master/</datadir>
+	</extension>
+	<extension point="xbmc.addon.metadata">
+		<summary lang="en">Kodi repository for beta/test versions of Marcelveldt's addons</summary>
+		<description lang="en">Kodi repository for beta/test versions of Marcelveldt's addons, for stable versions please just use the official Kodi repository. This repo is for test/beta versions of my work only</description>
+		<platform>all</platform>
 	</extension>
 </addon>
 
