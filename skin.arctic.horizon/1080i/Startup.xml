@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window>
+    <onload>SetProperty(SkinInitStarted,1,home)</onload>
+    <onload>ClearProperty(SkinSplashStarted,home)</onload>
+    <onload condition="!String.IsEmpty(Skin.String(StartupPlaylist))">ReplaceWindow(1113)</onload>
+    <onload condition="String.IsEmpty(Skin.String(StartupPlaylist))">ReplaceWindow($INFO[System.StartupWindow])</onload>
+    <controls />
+</window>
