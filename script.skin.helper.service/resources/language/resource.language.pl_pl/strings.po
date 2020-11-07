@@ -125,6 +125,6 @@ msgctxt "#32025"
 msgid "Use submenu as widget"
 msgstr "Używaj podmenu w roli gadżetu"
 
-msgctxt "#32025"
+msgctxt "#32026"
 msgid "RCB Most played games"
 msgstr "Gry ulubione"

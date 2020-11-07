@@ -1,7 +1,9 @@
 {
     "name"          : "UPnP",
     "plugin"        : "xbmc.core",
+    "icon"          : "{}/resources/icons/other/upnp.png",
     "priority"      : 10000,
+    "is_resolvable" : "true",
     "play_movie"    : [
                         "upnp://",
                         {"label": "Kodi.*"},

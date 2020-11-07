@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-'''
+"""
     script.skin.helper.skinbackup
     Kodi addon to backup skin settings
-'''
+"""
 
 import xbmc
 import xbmcvfs
@@ -12,7 +12,7 @@ import xbmcgui
 import xbmcaddon
 from utils import log_msg, ADDON_ID, get_skin_name, ADDON_DATA, copy_file, delete_file
 from utils import recursive_delete_dir, get_clean_image, normalize_string
-from utils import zip_tofile, unzip_fromfile
+from utils import zip_tofile, unzip_fromfile, getCondVisibility
 from dialogselect import DialogSelect
 from xml.dom.minidom import parse
 from datetime import datetime
@@ -20,19 +20,19 @@ import os
 
 
 class BackupRestore:
-    '''Main BackupRestore class providing methods to backup and restore skin settings'''
+    """Main BackupRestore class providing methods to backup and restore skin settings"""
     params = {}
 
     def __init__(self):
-        '''Initialization and main code run'''
+        """Initialization and main code run"""
         self.addon = xbmcaddon.Addon(ADDON_ID)
 
     def __del__(self):
-        '''Cleanup Kodi Cpython instances on exit'''
+        """Cleanup Kodi Cpython instances on exit"""
         del self.addon
 
     def backup(self, filters=None, backup_file="", silent=False):
-        '''create skin backup'''
+        """create skin backup"""
         if not filters:
             filters = []
 
@@ -69,7 +69,7 @@ class BackupRestore:
             xbmcgui.Dialog().ok(self.addon.getLocalizedString(32004), self.addon.getLocalizedString(32005))
 
     def restore(self, filename="", silent=False):
-        '''restore skin settings from file'''
+        """restore skin settings from file"""
 
         if not filename:
             filename = self.get_restorefilename()
@@ -115,7 +115,7 @@ class BackupRestore:
             xbmcgui.Dialog().ok(self.addon.getLocalizedString(32006), self.addon.getLocalizedString(32009))
 
     def backuprestore(self):
-        '''show dialog with all options for skin backups'''
+        """show dialog with all options for skin backups"""
         listitems = []
 
         # create backup option
@@ -158,7 +158,7 @@ class BackupRestore:
                 self.backuprestore()
 
     def backup_skinsettings(self, dest_file, filters, temp_path):
-        '''backup the skinsettings (guisettings)'''
+        """backup the skinsettings (guisettings)"""
         # save guisettings
         skinfile = xbmcvfs.File(dest_file, "w")
         skinsettings = self.get_skinsettings(filters)
@@ -175,7 +175,7 @@ class BackupRestore:
                     copy_file(source, dest)
 
     def backup_skinshortcuts(self, dest_path):
-        '''backup skinshortcuts including images'''
+        """backup skinshortcuts including images"""
         source_path = u'special://profile/addon_data/script.skinshortcuts/'
         if not xbmcvfs.exists(dest_path):
             xbmcvfs.mkdir(dest_path)
@@ -183,11 +183,12 @@ class BackupRestore:
             file = file.decode("utf-8")
             sourcefile = source_path + file
             destfile = dest_path + file
-            if xbmc.getCondVisibility("SubString(Skin.String(skinshortcuts-sharedmenu),false)"):
+            if getCondVisibility("String.Contains(Skin.String(skinshortcuts-sharedmenu),false)"):
                 # User is not sharing menu, so strip the skin name out of the destination file
                 destfile = destfile.replace("%s." % (xbmc.getSkinDir()), "")
-            if (file.endswith(".DATA.xml") and (not xbmc.getCondVisibility(
-                    "SubString(Skin.String(skinshortcuts-sharedmenu),false)") or file.startswith(xbmc.getSkinDir()))):
+            if (file.endswith(".DATA.xml")
+                    and (not getCondVisibility("String.Contains(Skin.String(skinshortcuts-sharedmenu),false)")
+                         or file.startswith(xbmc.getSkinDir()))):
                 xbmcvfs.copy(sourcefile, destfile)
                 # parse shortcuts file and look for any images - if found copy them to addon folder
                 self.backup_skinshortcuts_images(destfile, dest_path)
@@ -203,7 +204,7 @@ class BackupRestore:
 
     @staticmethod
     def backup_skinshortcuts_images(shortcutfile, dest_path):
-        '''parse skinshortcuts file and copy images to backup location'''
+        """parse skinshortcuts file and copy images to backup location"""
         shortcutfile = xbmc.translatePath(shortcutfile).decode("utf-8")
         doc = parse(shortcutfile)
         listing = doc.documentElement.getElementsByTagName('shortcut')
@@ -237,7 +238,7 @@ class BackupRestore:
 
     @staticmethod
     def backup_skinshortcuts_properties(propertiesfile, dest_path):
-        '''parse skinshortcuts properties file and translate images'''
+        """parse skinshortcuts properties file and translate images"""
         # look for any backgrounds and translate them
         propfile = xbmcvfs.File(propertiesfile)
         data = propfile.read()
@@ -263,7 +264,7 @@ class BackupRestore:
         propfile.close()
 
     def get_backuppath(self):
-        '''get the file location where backups should be stored'''
+        """get the file location where backups should be stored"""
         backuppath = self.addon.getSetting("backup_path").decode("utf-8")
         if not backuppath:
             backuppath = xbmcgui.Dialog().browse(3, self.addon.getLocalizedString(32002),
@@ -272,10 +273,10 @@ class BackupRestore:
         return backuppath
 
     def get_backupfilename(self, promptfilename=False):
-        '''get the filename for the new backup'''
+        """get the filename for the new backup"""
         backupfile = "%s Skinbackup (%s)" % (
-                get_skin_name().capitalize(),
-                datetime.now().strftime('%Y-%m-%d %H.%M.%S'))
+            get_skin_name().capitalize(),
+            datetime.now().strftime('%Y-%m-%d %H.%M.%S'))
         if promptfilename:
             header = self.addon.getLocalizedString(32003)
             backupfile = xbmcgui.Dialog().input(header, backupfile).decode("utf-8")
@@ -284,10 +285,10 @@ class BackupRestore:
 
     @staticmethod
     def create_temp():
-        '''create temp folder for skin backup/restore'''
+        """create temp folder for skin backup/restore"""
         temp_path = u'%stemp/' % ADDON_DATA
         # workaround weird slashes behaviour on some platforms.
-        temp_path = temp_path.replace("//","/").replace("special:/","special://")
+        temp_path = temp_path.replace("//", "/").replace("special:/", "special://")
         if xbmcvfs.exists(temp_path):
             recursive_delete_dir(temp_path)
             xbmc.sleep(2000)
@@ -296,15 +297,15 @@ class BackupRestore:
         return temp_path
 
     def get_restorefilename(self):
-        '''browse for backup file'''
+        """browse for backup file"""
         filename = xbmcgui.Dialog().browse(1, self.addon.getLocalizedString(32008),
-                                       'files').decode("utf-8")
-        filename = filename.replace("//", "") # possible fix for strange path issue on atv/ftv ?
+                                           'files').decode("utf-8")
+        filename = filename.replace("//", "")  # possible fix for strange path issue on atv/ftv ?
         return filename
 
     @staticmethod
     def get_skinsettings(filters=None):
-        '''get all active skin settings'''
+        """get all active skin settings"""
         all_skinsettings = []
         guisettings_path = 'special://profile/addon_data/%s/settings.xml' % xbmc.getSkinDir()
         if xbmcvfs.exists(guisettings_path):
@@ -334,7 +335,7 @@ class BackupRestore:
         return all_skinsettings
 
     def restore_guisettings(self, filename, progressdialog):
-        '''restore guisettings'''
+        """restore guisettings"""
         kodifile = xbmcvfs.File(filename, 'r')
         data = kodifile.read()
         importstring = eval(data)
@@ -366,7 +367,7 @@ class BackupRestore:
 
     @staticmethod
     def restore_skinshortcuts(temp_path):
-        '''restore skinshortcuts files'''
+        """restore skinshortcuts files"""
         source_path = temp_path + u"skinshortcuts/"
         if xbmcvfs.exists(source_path):
             dest_path = u'special://profile/addon_data/script.skinshortcuts/'
@@ -376,12 +377,12 @@ class BackupRestore:
                 destfile = dest_path + filename
                 if filename == "SKINPROPERTIES.properties":
                     destfile = dest_path + filename.replace("SKINPROPERTIES", xbmc.getSkinDir())
-                elif xbmc.getCondVisibility("SubString(Skin.String(skinshortcuts-sharedmenu),false)"):
+                elif getCondVisibility("String.Contains(Skin.String(skinshortcuts-sharedmenu),false)"):
                     destfile = "%s-" % (xbmc.getSkinDir())
                 copy_file(sourcefile, destfile)
 
     def reset(self, filters=None, silent=False):
-        '''reset skin settings'''
+        """reset skin settings"""
         log_msg("filters: %s" % filters)
         if silent or (not silent and
                       xbmcgui.Dialog().yesno(heading=self.addon.getLocalizedString(32010),
@@ -403,7 +404,7 @@ class BackupRestore:
             xbmc.executebuiltin("RunScript(script.skin.helper.service,action=checkskinsettings)")
 
     def check_autobackup(self):
-        '''perform auto backup if enabled and needed'''
+        """perform auto backup if enabled and needed"""
         if self.addon.getSetting("auto_backups") == "true":
             cur_date = datetime.now().strftime('%Y-%m-%d')
             last_backup = self.addon.getSetting("last_backup")
@@ -415,7 +416,7 @@ class BackupRestore:
                 self.clean_oldbackups()
 
     def clean_oldbackups(self):
-        '''auto clean old backups'''
+        """auto clean old backups"""
         backuppath = self.addon.getSetting("backup_path").decode("utf-8")
         max_backups = self.addon.getSetting("max_old_backups")
         if max_backups:

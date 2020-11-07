@@ -1,7 +1,7 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-'''Various helper methods'''
+"""Various helper methods"""
 
 import xbmc
 import xbmcvfs
@@ -18,14 +18,14 @@ ADDON_DATA = u'special://profile/addon_data/%s/' % ADDON_ID
 
 
 def log_msg(msg, loglevel=xbmc.LOGDEBUG):
-    '''log to kodi logfile'''
+    """log to kodi logfile"""
     if isinstance(msg, unicode):
         msg = msg.encode('utf-8')
     xbmc.log("Skin Helper Backup --> %s" % msg, level=loglevel)
 
 
 def log_exception(modulename, exceptiondetails):
-    '''helper to properly log exception details'''
+    """helper to properly log exception details"""
     log_msg(format_exc(sys.exc_info()), xbmc.LOGNOTICE)
     log_msg("ERROR in %s ! --> %s" % (modulename, exceptiondetails), xbmc.LOGERROR)
     dialog = xbmcgui.Dialog()
@@ -37,7 +37,7 @@ def log_exception(modulename, exceptiondetails):
 
 
 def kodi_json(jsonmethod, params=None):
-    '''get info from the kodi json api'''
+    """get info from the kodi json api"""
     import json
     kodi_json = {}
     kodi_json["jsonrpc"] = "2.0"
@@ -62,7 +62,7 @@ def kodi_json(jsonmethod, params=None):
 
 
 def recursive_delete_dir(fullpath):
-    '''helper to recursively delete a directory'''
+    """helper to recursively delete a directory"""
     success = True
     if not isinstance(fullpath, unicode):
         fullpath = fullpath.decode("utf-8")
@@ -78,7 +78,7 @@ def recursive_delete_dir(fullpath):
 
 
 def copy_file(source, destination, do_wait=False):
-    '''copy a file on the filesystem, wait for the action to be completed'''
+    """copy a file on the filesystem, wait for the action to be completed"""
     if xbmcvfs.exists(destination):
         delete_file(destination)
     xbmcvfs.copy(source, destination)
@@ -92,7 +92,7 @@ def copy_file(source, destination, do_wait=False):
 
 
 def delete_file(filepath, do_wait=False):
-    '''delete a file on the filesystem, wait for the action to be completed'''
+    """delete a file on the filesystem, wait for the action to be completed"""
     xbmcvfs.delete(filepath)
     if do_wait:
         count = 20
@@ -104,7 +104,7 @@ def delete_file(filepath, do_wait=False):
 
 
 def get_clean_image(image):
-    '''helper to strip all kodi tags/formatting of an image path/url'''
+    """helper to strip all kodi tags/formatting of an image path/url"""
     if image and "image://" in image:
         image = image.replace("image://", "")
         image = urllib.unquote(image.encode("utf-8"))
@@ -119,7 +119,7 @@ def get_clean_image(image):
 
 
 def normalize_string(text):
-    '''normalize string, strip all special chars'''
+    """normalize string, strip all special chars"""
     text = text.replace(":", "")
     text = text.replace("/", "-")
     text = text.replace("\\", "-")
@@ -140,7 +140,7 @@ def normalize_string(text):
 
 
 def add_tozip(src, zip_file, abs_src):
-    '''helper method'''
+    """helper method"""
     dirs, files = xbmcvfs.listdir(src)
     for filename in files:
         filename = filename.decode("utf-8")
@@ -160,7 +160,7 @@ def add_tozip(src, zip_file, abs_src):
 
 
 def zip_tofile(src, dst):
-    '''method to create a zip file from all files/dirs in a path'''
+    """method to create a zip file from all files/dirs in a path"""
     import zipfile
     zip_file = zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED)
     abs_src = os.path.abspath(xbmc.translatePath(src).decode("utf-8"))
@@ -169,7 +169,7 @@ def zip_tofile(src, dst):
 
 
 def unzip_fromfile(zip_path, dest_path):
-    '''method to unzip a zipfile to a destination path'''
+    """method to unzip a zipfile to a destination path"""
     import shutil
     import zipfile
     zip_path = xbmc.translatePath(zip_path).decode("utf-8")
@@ -204,10 +204,33 @@ def unzip_fromfile(zip_path, dest_path):
 
 
 def get_skin_name():
-    ''' get the skin name filtering out any beta prefixes and such.'''
+    """ get the skin name filtering out any beta prefixes and such."""
     skin_name = xbmc.getSkinDir().decode("utf-8")
     skin_name = skin_name.replace("skin.", "")
     skin_name = skin_name.replace(".kryptonbeta", "")
     skin_name = skin_name.replace(".jarvisbeta", "")
     skin_name = skin_name.replace(".leiabeta", "")
     return skin_name
+
+
+def getCondVisibility(text):
+    """executes the builtin getCondVisibility, adding backwards compatibility"""
+    if KODI_VERSION < 17:
+        text = text.replace("Integer.IsGreater", "IntegerGreaterThan")
+        text = text.replace("String.Contains", "SubString")
+        text = text.replace("String.IsEqual", "StringCompare")
+    return xbmc.getCondVisibility(text)
+
+
+def busyDialog(text):
+    """executes builtin busydialog with backward compatibility"""
+    if text == 'activate':
+        if KODI_VERSION < 18:
+            xbmc.executebuiltin("ActivateWindow(busydialog)")
+        else:
+            xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
+    elif text == 'close':
+        if KODI_VERSION < 18:
+            xbmc.executebuiltin("Dialog.Close(busydialog)")
+        else:
+            xbmc.executebuiltin('Dialog.Close(busydialognocancel)')

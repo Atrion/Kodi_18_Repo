@@ -1,16 +1,16 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-'''
+"""
     script.skin.helper.skinbackup
     Kodi addon to backup skin settings
-'''
+"""
 
 import xbmc
 import xbmcvfs
 import xbmcgui
 import xbmcaddon
-from utils import log_msg, log_exception, ADDON_ID, kodi_json, unzip_fromfile
+from utils import log_msg, log_exception, ADDON_ID, kodi_json, unzip_fromfile, busyDialog
 from utils import recursive_delete_dir, get_clean_image, normalize_string, get_skin_name
 from dialogselect import DialogSelect
 from datetime import datetime
@@ -19,7 +19,7 @@ import os
 
 
 class ColorThemes():
-    '''Allow the user to create custom colorthemes for the skin by creating backups of colorsettings for the skin'''
+    """Allow the user to create custom colorthemes for the skin by creating backups of colorsettings for the skin"""
 
     def __init__(self):
         self.userthemes_path = u"special://profile/addon_data/%s/themes/" % xbmc.getSkinDir()
@@ -31,11 +31,11 @@ class ColorThemes():
         self.addon = xbmcaddon.Addon(ADDON_ID)
 
     def __del__(self):
-        '''Cleanup Kodi Cpython instances on exit'''
+        """Cleanup Kodi Cpython instances on exit"""
         del self.addon
 
     def colorthemes(self):
-        '''show dialog with all available color themes'''
+        """show dialog with all available color themes"""
         listitems = []
         # create item
         listitem = xbmcgui.ListItem(label=self.addon.getLocalizedString(32035), iconImage="DefaultAddonSkin.png")
@@ -95,7 +95,7 @@ class ColorThemes():
                     self.colorthemes()
 
     def daynightthemes(self, dayornight):
-        '''allow user to set a specific theme during day/night time'''
+        """allow user to set a specific theme during day/night time"""
 
         if dayornight not in ["day", "night"]:
             log_msg("Invalid parameter for day/night theme - must be day or night")
@@ -117,7 +117,7 @@ class ColorThemes():
             self.set_day_night_theme(dayornight, themename, themefile)
 
     def set_day_night_theme(self, dayornight, themename, themefile):
-        ''' Sets a new daynight theme'''
+        """ Sets a new daynight theme"""
         currenttimevalue = xbmc.getInfoLabel("Skin.String(SkinHelper.ColorTheme.%s.time)" % dayornight)
         if not currenttimevalue:
             currenttimevalue = "20:00" if dayornight == "night" else "07:00"
@@ -138,11 +138,11 @@ class ColorThemes():
             xbmcgui.Dialog().ok(xbmc.getLocalizedString(329), self.addon.getLocalizedString(32018))
 
     def backup_theme(self, themename):
-        '''backup a colortheme to a zipfile'''
+        """backup a colortheme to a zipfile"""
         import zipfile
         backup_path = xbmcgui.Dialog().browse(3, self.addon.getLocalizedString(32029), "files").decode("utf-8")
         if backup_path:
-            xbmc.executebuiltin("ActivateWindow(busydialog)")
+            busyDialog("activate")
             backup_name = u"%s ColorTheme - %s" % (get_skin_name().capitalize(), themename)
             backupfile = os.path.join(backup_path, backup_name + u".zip")
             zip_temp = u'special://temp/%s.zip' % backup_name
@@ -161,17 +161,17 @@ class ColorThemes():
                     zip_file.write(absname, arcname)
             zip_file.close()
             xbmcvfs.copy(zip_temp, backupfile)
-            xbmc.executebuiltin("Dialog.Close(busydialog)")
+            busyDialog("close")
 
     @staticmethod
     def remove_theme(filename):
-        '''remove theme from disk'''
+        """remove theme from disk"""
         xbmcvfs.delete(filename.replace(".theme", ".jpg"))
         xbmcvfs.delete(filename)
 
     @staticmethod
     def set_icon_for_theme(filename):
-        '''sets an icon for an existing theme'''
+        """sets an icon for an existing theme"""
         iconpath = filename.replace(".theme", ".jpg")
         dialog = xbmcgui.Dialog()
         custom_thumbnail = dialog.browse(2, xbmc.getLocalizedString(1030), 'files')
@@ -181,22 +181,24 @@ class ColorThemes():
 
     @staticmethod
     def get_activetheme():
-        '''get current active theme name'''
+        """get current active theme name"""
         return xbmc.getInfoLabel("$INFO[Skin.String(SkinHelper.LastColorTheme)]").decode("utf-8")
 
     def get_skin_colorthemes(self):
-        '''returns all available skinprovided colorthemes as listitems'''
+        """returns all available skinprovided colorthemes as listitems"""
         listitems = []
         for file in xbmcvfs.listdir(self.skinthemes_path)[1]:
             if file.endswith(".theme"):
                 file = file.decode("utf-8")
                 themefile = self.skinthemes_path + file
+                label = file.replace(".theme", "")
                 icon = themefile.replace(".theme", ".jpg")
                 if not xbmcvfs.exists(icon):
                     icon = ""
                 xbmcfile = xbmcvfs.File(themefile)
                 data = xbmcfile.read()
                 xbmcfile.close()
+                desc = ""
                 for skinsetting in eval(data):
                     if skinsetting[0] == "DESCRIPTION":
                         desc = skinsetting[1]
@@ -212,7 +214,7 @@ class ColorThemes():
         return listitems
 
     def get_user_colorthemes(self):
-        '''get all user stored color themes as listitems'''
+        """get all user stored color themes as listitems"""
         listitems = []
         for file in xbmcvfs.listdir(self.userthemes_path)[1]:
             if file.endswith(".theme"):
@@ -233,8 +235,8 @@ class ColorThemes():
 
     @staticmethod
     def load_colortheme(filename):
-        '''load colortheme from themefile'''
-        xbmc.executebuiltin("ActivateWindow(busydialog)")
+        """load colortheme from themefile"""
+        busyDialog("activate")
         xbmcfile = xbmcvfs.File(filename)
         data = xbmcfile.read()
         xbmcfile.close()
@@ -294,10 +296,10 @@ class ColorThemes():
         if skinfont and current_skinfont != skinfont and current_skinfont.lower() != "arial":
             kodi_json("Settings.SetSettingValue", {"setting": "lookandfeel.font", "value": skinfont})
 
-        xbmc.executebuiltin("Dialog.Close(busydialog)")
+        busyDialog("close")
 
     def restore_colortheme(self):
-        '''restore zipbackup of colortheme to colorthemes folder'''
+        """restore zipbackup of colortheme to colorthemes folder"""
         zip_path = xbmcgui.Dialog().browse(1, self.addon.getLocalizedString(32030), "files", ".zip")
         if zip_path and zip_path.endswith(".zip"):
 
@@ -322,7 +324,7 @@ class ColorThemes():
             xbmcgui.Dialog().ok(self.addon.getLocalizedString(32026), self.addon.getLocalizedString(32027))
 
     def create_colortheme(self):
-        '''create a colortheme from current skin color settings'''
+        """create a colortheme from current skin color settings"""
         try:
             current_skinfont = None
             json_response = kodi_json("Settings.GetSettingValue", {"setting": "lookandfeel.font"})
@@ -339,7 +341,7 @@ class ColorThemes():
             if not themename:
                 return
 
-            xbmc.executebuiltin("ActivateWindow(busydialog)")
+            busyDialog("activate")
             xbmc.executebuiltin("Skin.SetString(SkinHelper.LastColorTheme,%s)" % themename.encode("utf-8"))
 
             # add screenshot
@@ -385,15 +387,15 @@ class ColorThemes():
                 text_file = xbmcvfs.File(text_file_path, "w")
                 text_file.write(repr(newlist))
                 text_file.close()
-                xbmc.executebuiltin("Dialog.Close(busydialog)")
+                busyDialog("close")
                 xbmcgui.Dialog().ok(self.addon.getLocalizedString(32026), self.addon.getLocalizedString(32027))
         except Exception as exc:
-            xbmc.executebuiltin("Dialog.Close(busydialog)")
+            busyDialog("close")
             log_exception(__name__, exc)
             xbmcgui.Dialog().ok(self.addon.getLocalizedString(32028), self.addon.getLocalizedString(32030), str(exc))
 
     def check_daynighttheme(self):
-        '''check if a specific day or night theme should be applied'''
+        """check if a specific day or night theme should be applied"""
         if xbmc.getCondVisibility(
                 "Skin.HasSetting(SkinHelper.EnableDayNightThemes) + "
                 "Skin.String(SkinHelper.ColorTheme.Day.time) + "

@@ -1,15 +1,15 @@
-Version 5.1.11 (October 18, 2020)
+Version 5.1.13 (November 7, 2020)
 - Code Base Changes:
-    - xbmc.translatePath deprecated in Matrix
+    - Captcha_lib improvements
+    - Fix some Unicode warnings
+    - Fix fetching cookies from response headers
 
 - Resolvers Added:
-    - Newtube
+    - StreamSB
  
 - Resolvers Fixed/Updated:
-    - Gounlimited
-    - Upstream
-    - Streamtape
-    - Fembed
+    - Googlevideo plugin now uses GoogleDrive addon instead of Gdrive
+    - Vidoza
 
 - Resolvers Removed
     - None

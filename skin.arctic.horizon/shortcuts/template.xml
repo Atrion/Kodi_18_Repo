@@ -288,12 +288,12 @@
             <property name="widgetLabelName">False</property>
 
             <!-- Widget Label Renaming Strings -->
-            <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonrecentlywatchedmovies">Similar to </property>
+            <!-- <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonrecentlywatchedmovies">Similar to </property>
             <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonrecentlywatchedtvshows">Similar to </property>
             <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonrecentlywatched">Similar to </property>
             <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonmostwatchedmovies">Similar to </property>
             <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonmostwatchedtvshows">Similar to </property>
-            <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonmostwatched">Similar to </property>
+            <property name="widgetLabelStart" tag="property" attribute="name|labelID" value="basedonmostwatched">Similar to </property> -->
 
             <!-- Widget Label -->
             <property name="widgetName" tag="label" />
@@ -332,7 +332,10 @@
             <property name="widgetSortby" tag="property" attribute="name|widgetSortby" />
             <property name="widgetSortorder" tag="property" attribute="name|widgetSortorder" />
             <property name="widgetLimit" tag="property" attribute="name|widgetLimit" />
-            <property name="widgetLimit">20</property>
+
+            <!-- Widget Show More -->
+            <property name="widgetShowMore" tag="property" attribute="name|widgetLimit">true</property>
+            <property name="widgetShowMore">false</property>
 
             <!-- Is Second Position -->
             <property name="isSecondPosition" tag="property" attribute="name|id" value="$NUMBER[2]">true</property>
@@ -437,7 +440,7 @@
                     <content><include condition="$SKINSHORTCUTS[widgetSubmenu]">skinshortcuts-submenu</include></content>
                     <content target="$SKINSHORTCUTS[widgetTarget]" limit="$SKINSHORTCUTS[widgetLimit]" sortby="$SKINSHORTCUTS[widgetSortby]" sortorder="$SKINSHORTCUTS[widgetSortorder]">$SKINSHORTCUTS[widgetPath]</content>
                     <content>
-                        <include content="Object_Item" condition="Skin.HasSetting(EnableShowMore) + !$SKINSHORTCUTS[widgetSubmenu]">
+                        <include content="Object_Item" condition="Skin.HasSetting(EnableShowMore) + !$SKINSHORTCUTS[widgetSubmenu] + $SKINSHORTCUTS[widgetShowMore]">
                             <label>$LOCALIZE[31061]...</label>
                             <label2>$LOCALIZE[31062]</label2>
                             <icon>common/nextitem.png</icon>

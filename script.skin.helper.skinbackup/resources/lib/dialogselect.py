@@ -1,17 +1,17 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-'''
+"""
     script.skin.helper.skinbackup
     Kodi addon to backup skin settings
-'''
+"""
 
 import xbmcgui
 import xbmc
 
 
 class DialogSelect(xbmcgui.WindowXMLDialog):
-    '''Wrapper around Kodi dialogselect dialog'''
+    """Wrapper around Kodi dialogselect dialog"""
     list_control = None
 
     def __init__(self, *args, **kwargs):
@@ -23,7 +23,7 @@ class DialogSelect(xbmcgui.WindowXMLDialog):
         self.result = None
 
     def close_dialog(self, cancelled=False):
-        '''close dialog and return value'''
+        """close dialog and return value"""
         if cancelled:
             self.result = None
         else:
@@ -31,7 +31,7 @@ class DialogSelect(xbmcgui.WindowXMLDialog):
         self.close()
 
     def onInit(self):
-        '''Initialization when the window is loaded'''
+        """Initialization when the window is loaded"""
 
         # set correct list
         self.set_list_control()
@@ -52,7 +52,7 @@ class DialogSelect(xbmcgui.WindowXMLDialog):
                 self.list_control.selectItem(0)
 
     def onAction(self, action):
-        '''Respond to Kodi actions e.g. exit'''
+        """Respond to Kodi actions e.g. exit"""
         if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448, ):
             self.close_dialog(True)
 
@@ -62,14 +62,14 @@ class DialogSelect(xbmcgui.WindowXMLDialog):
             self.close_dialog()
 
     def onClick(self, controlID):
-        '''Fires if user clicks one of the dialog buttons'''
+        """Fires if user clicks one of the dialog buttons"""
         # special button
         if controlID == 5 and self.extrabutton:
             self.result = True
         self.close()
 
     def set_list_control(self):
-        '''select correct list (3=small, 6=big with icons)'''
+        """select correct list (3=small, 6=big with icons)"""
         try:
             # prefer list control 6
             self.list_control = self.getControl(6)
@@ -92,7 +92,7 @@ class DialogSelect(xbmcgui.WindowXMLDialog):
             self.getControl(5).setLabel(self.extrabutton)
 
     def set_cancel_button(self):
-        '''set cancel button if exists'''
+        """set cancel button if exists"""
         try:
             self.getControl(7).setLabel(xbmc.getLocalizedString(222))
             self.getControl(7).setVisible(True)
