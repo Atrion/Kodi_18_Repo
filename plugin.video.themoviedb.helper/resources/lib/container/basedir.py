@@ -149,6 +149,12 @@ def _get_basedir_details():
             'art': {'thumb': '{}/resources/icons/tmdb/movies.png'.format(ADDONPATH)},
             'types': ['movie', 'tv', 'episode']},
         {
+            'label': ADDON.getLocalizedString(32345),
+            'params': {'info': 'episode_groups'},
+            'path': PLUGINPATH,
+            'art': {'thumb': '{}/resources/icons/tmdb/episodes.png'.format(ADDONPATH)},
+            'types': ['tv']},
+        {
             'label': ADDON.getLocalizedString(32232),
             'params': {'info': 'trakt_inlists'},
             'path': PLUGINPATH,

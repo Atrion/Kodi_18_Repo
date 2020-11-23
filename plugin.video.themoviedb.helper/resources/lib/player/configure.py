@@ -5,7 +5,7 @@ from resources.lib.addon.constants import PLAYERS_BASEDIR_BUNDLED, PLAYERS_BASED
 from resources.lib.files.utils import get_files_in_folder
 from resources.lib.addon.plugin import ADDON, ADDONPATH, viewitems
 from resources.lib.files.utils import read_file, dumps_to_file, delete_file
-from resources.lib.addon.parser import try_int
+from resources.lib.addon.parser import try_int, try_decode
 from resources.lib.container.listitem import ListItem
 from resources.lib.addon.decorators import busy_dialog
 from json import loads, dumps
@@ -27,7 +27,8 @@ def get_players_from_file():
                 if not xbmc.getCondVisibility(u'System.HasAddon({0})'.format(i)):
                     break  # System doesn't have a required plugin so skip this player
             else:
-                players[file] = meta
+                meta['plugin'] = plugins[0]
+                players[try_decode(file)] = meta
     return players
 
 
@@ -53,7 +54,7 @@ def configure_players(*args, **kwargs):
 class _ConfigurePlayer():
     def __init__(self, player, filename):
         self.player = player
-        self.filename = filename
+        self.filename = try_decode(filename)
 
     def get_player_settings(self):
         if not self.player:
@@ -203,7 +204,7 @@ class ConfigurePlayers():
             dumps_to_file(player, PLAYERS_BASEDIR_SAVE, filename, indent=4, join_addon_data=False)  # Write out file
 
     def configure_players(self):
-        filename = self.select_player()
+        filename = try_decode(self.select_player())
         if not filename:
             return
         player = self.players[filename].copy()

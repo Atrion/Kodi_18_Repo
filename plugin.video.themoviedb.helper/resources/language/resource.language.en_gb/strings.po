@@ -1642,9 +1642,11 @@ msgstr ""
 #: /resources/lib/player/players.py
 msgctxt "#32325"
 msgid ""
-"This player is missing the \"is_resolvable\" flag.\nsetResolvedUrl is preferred but may not work with all players. PlayMedia should only be used if you experience difficulties using setResolvedUrl with this player.\n"
+"Configuration for player is missing \"is_resolvable\" flag. Please select resolve method.\n"
 "\n"
-"This dialog can be skipped by configuring a resolve method for the player in the player configuration dialog found in TMDbHelper\'s player settings."
+"setResolvedUrl is the preferred method and generally should work for any player addon that plays files directly, uses inputstream adapative, or only prompts to select bitrate/quality. PlayMedia should be used for any player addon which first runs a script to scrape sources or otherwise does not work correctly using the setResolvedUrl method.\n"
+"\n"
+"To override this dialog, set a resolve method for the player in TMDbHelper\\'s player settings configuration dialog."
 msgstr ""
 
 #: /resources/lib/helpers/timedate.py
@@ -1729,7 +1731,7 @@ msgctxt "#32340"
 msgid ""
 "Please note that setResolvedUrl is Kodi\\'s preferred method for resolving playback URLs. The PlayMedia method should only be used if you experience difficulties using setResolvedUrl with this particular player.\n"
 "\n"
-"Are you sure you want to set this player\\'s' resolve method to PlayMedia?"
+"Are you sure you want to set this player\\'s resolve method to PlayMedia?"
 msgstr ""
 
 #: /resources/lib/player/configure.py
@@ -1750,6 +1752,36 @@ msgstr ""
 #: /resources/lib/player/configure.py
 msgctxt "#32344"
 msgid "Enter New Priority for {}"
+msgstr ""
+
+#: /resources/lib/tmdb/api.py
+msgctxt "#32345"
+msgid "Episode groups"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32346"
+msgid "Use hack to get Kodi Trakt addon to scrobble local files"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32347"
+msgid "Log output of Trakt request"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32348"
+msgid "Log output of TMDb request"
+msgstr ""
+
+#: /resources/lib/kodi/library.py
+msgctxt "#32349"
+msgid "Creating movies playlist"
+msgstr ""
+
+#: /resources/lib/kodi/library.py
+msgctxt "#32350"
+msgid "Creating tvshows playlist"
 msgstr ""
 
 msgctxt "#30030"

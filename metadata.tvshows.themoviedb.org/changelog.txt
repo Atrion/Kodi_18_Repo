@@ -1,3 +1,16 @@
+[B]3.5.9[/B]
+- Fixed: Guest Stars were not scraped in some cases
+
+
+[B]3.5.8[/B]
+- Fixed: Some more fixes following tmdb layout changes
+
+[B]3.5.7[/B]
+- Fixed: Episode list for languages what are not available
+
+[B]3.5.6[/B]
+- Fixed: Scraping following TMDB API layout changes
+
 [B]3.5.5[/B]
 - Fixed: Swapped actor name and role for actors without photo
 

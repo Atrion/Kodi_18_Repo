@@ -30,6 +30,21 @@ def string_format_map(fmt, d):
         return fmt.format(**d)
 
 
+def wait_for_player(to_start=None, timeout=5, poll=0.25):
+    xbmc_monitor, xbmc_player = xbmc.Monitor(), xbmc.Player()
+    while (
+            not xbmc_monitor.abortRequested()
+            and timeout > 0
+            and (
+                (to_start and (not xbmc_player.isPlaying() or not xbmc_player.getPlayingFile().endswith(to_start)))
+                or (not to_start and xbmc_player.isPlaying()))):
+        xbmc_monitor.waitForAbort(poll)
+        timeout -= poll
+    del xbmc_monitor
+    del xbmc_player
+    return timeout
+
+
 def resolve_to_dummy(handle=None):
     """
     Kodi does 5x retries to resolve url if isPlayable property is set - strm files force this property.
@@ -38,6 +53,7 @@ def resolve_to_dummy(handle=None):
     Passing False to setResolvedUrl doesn't work correctly and the retry is triggered anyway.
     In these instances we use a hack to avoid the retry by first resolving to a dummy file instead.
     """
+    # If we don't have a handle there's nothing to resolve
     if handle is None:
         return
 
@@ -45,36 +61,21 @@ def resolve_to_dummy(handle=None):
     path = '{}/resources/dummy.mp4'.format(ADDONPATH)
     kodi_log(['lib.player.players - attempt to resolve dummy file\n', path], 1)
     xbmcplugin.setResolvedUrl(handle, True, ListItem(path=path).get_listitem())
-    xbmc_monitor, xbmc_player = xbmc.Monitor(), xbmc.Player()
 
     # Wait till our file plays before stopping it
-    timeout = 5
-    while (
-            not xbmc_monitor.abortRequested()
-            and (not xbmc_player.isPlaying() or not xbmc_player.getPlayingFile().endswith('dummy.mp4'))
-            and timeout > 0):
-        xbmc_monitor.waitForAbort(0.1)
-        timeout -= 0.1
-    xbmc.Player().stop()
-    if timeout <= 0:
+    if wait_for_player(to_start='dummy.mp4') <= 0:
         kodi_log(['lib.player.players - resolving dummy file timeout\n', path], 1)
         return -1
 
-    # Wait till our file stops playing before continuing
-    timeout = 5
-    while (
-            not xbmc_monitor.abortRequested()
-            and xbmc_player.isPlaying()
-            and timeout > 0):
-        xbmc_monitor.waitForAbort(0.1)
-        timeout -= 0.1
-    if timeout <= 0:
+    # Stop our dummy file
+    xbmc.Player().stop()
+
+    # Wait for our file to stop before continuing
+    if wait_for_player() <= 0:
         kodi_log(['lib.player.players - stopping dummy file timeout\n', path], 1)
         return -1
 
-    # Clean-up
-    del xbmc_monitor
-    del xbmc_player
+    # Success
     kodi_log(['lib.player.players -- successfully resolved dummy file\n', path], 1)
 
 
@@ -113,7 +114,7 @@ class Players(object):
             'file': file, 'mode': mode,
             'is_folder': is_folder,
             'is_resolvable': value.get('is_resolvable'),
-            'name': '{} {}'.format(name, value.get('name')),
+            'name': u'{} {}'.format(name, value.get('name')),
             'plugin_name': value.get('plugin'),
             'plugin_icon': value.get('icon', '').format(ADDONPATH) or xbmcaddon.Addon(value.get('plugin', '')).getAddonInfo('icon'),
             'fallback': value.get('fallback', {}).get(mode),
@@ -142,10 +143,15 @@ class Players(object):
         return file
 
     def _get_local_movie(self):
-        return self._get_local_file(KodiLibrary(dbtype='movie').get_info(
-            'file', fuzzy_match=False,
+        dbid = KodiLibrary(dbtype='movie').get_info(
+            'dbid', fuzzy_match=False,
             tmdb_id=self.item.get('tmdb'),
-            imdb_id=self.item.get('imdb')))
+            imdb_id=self.item.get('imdb'))
+        if not dbid:
+            return
+        if self.details:  # Add dbid to details to update our local progress.
+            self.details.infolabels['dbid'] = dbid
+        return self._get_local_file(KodiLibrary(dbtype='movie').get_info('file', fuzzy_match=False, dbid=dbid))
 
     def _get_local_episode(self):
         dbid = KodiLibrary(dbtype='tvshow').get_info(
@@ -365,6 +371,7 @@ class Players(object):
         if path and isinstance(path, tuple):
             return {
                 'url': path[0],
+                'is_local': 'true' if player.get('is_local', False) else 'false',
                 'is_folder': 'true' if path[1] else 'false',
                 'isPlayable': 'false' if path[1] else 'true',
                 'is_resolvable': player['is_resolvable'] if player.get('is_resolvable') else 'select',
@@ -394,7 +401,7 @@ class Players(object):
         container_folderpath = xbmc.getInfoLabel("Container.FolderPath")
         if container_folderpath == folder_path:
             return
-        xbmc.executebuiltin('Container.Update({},replace)'.format(folder_path))
+        xbmc.executebuiltin(try_encode(u'Container.Update({},replace)'.format(folder_path)))
         if not reset_focus:
             return
         with busy_dialog():
@@ -404,6 +411,21 @@ class Players(object):
                 timeout -= 1
             xbmc.executebuiltin(reset_focus)
             xbmc.Monitor().waitForAbort(0.5)
+
+    def configure_action(self, listitem, handle=None):
+        path = try_decode(listitem.getPath())
+        if listitem.getProperty('is_folder') == 'true':
+            return format_folderpath(path)
+        action = 'run_plugin' if path.startswith('plugin://') else 'play_media'
+        action = u'RunScript(plugin.video.themoviedb.helper,{}={})'.format(action, path)
+        if path.endswith('.strm'):
+            return action
+        if not handle or listitem.getProperty('is_resolvable') == 'false':
+            return action
+        if listitem.getProperty('is_resolvable') == 'select' and xbmcgui.Dialog().yesno(
+                '{} - {}'.format(listitem.getProperty('player_name'), ADDON.getLocalizedString(32324)),
+                ADDON.getLocalizedString(32325), yeslabel='PlayMedia', nolabel='setResolvedUrl'):
+            return action
 
     def play(self, folder_path=None, reset_focus=None, handle=None):
         # Get some info about current container for container update hack
@@ -416,30 +438,18 @@ class Players(object):
 
         # Get the resolved path
         listitem = self.get_resolved_path()
-        path = try_decode(listitem.getPath())
-        is_folder = True if listitem.getProperty('is_folder') == 'true' else False
-        is_resolvable = listitem.getProperty('is_resolvable')
 
         # Reset folder hack
         self._update_listing_hack(folder_path=folder_path, reset_focus=reset_focus)
 
         # Check we have an actual path to open
-        if not path or path == PLUGINPATH:
+        if not try_decode(listitem.getPath()) or try_decode(listitem.getPath()) == PLUGINPATH:
             return
 
-        action = None
-        if is_folder:
-            action = format_folderpath(path)
-        elif path.endswith('.strm') or not handle or is_resolvable == 'false':
-            action = u'RunScript(plugin.video.themoviedb.helper,play_media={})'.format(path)
-        elif is_resolvable == 'select' and xbmcgui.Dialog().yesno(
-                '{} - {}'.format(listitem.getProperty('player_name'), ADDON.getLocalizedString(32324)),
-                ADDON.getLocalizedString(32325),
-                yeslabel='PlayMedia', nolabel='setResolvedUrl'):
-            action = u'RunScript(plugin.video.themoviedb.helper,play_media={})'.format(path)
+        action = self.configure_action(listitem, handle)
 
         # Set our playerstring for player monitor to update kodi watched status
-        if not is_folder and self.playerstring:
+        if not listitem.getProperty('is_folder') == 'true' and self.playerstring:
             get_property('PlayerInfoString', set_property=self.playerstring)
 
         # Kodi launches busy dialog on home screen that needs to be told to close
@@ -455,8 +465,12 @@ class Players(object):
 
         # Else resolve to file directly
         xbmcplugin.setResolvedUrl(handle, True, listitem)
-        kodi_log(['lib.player - finished resolving path to url\n', path], 1)
+        kodi_log(['lib.player - finished resolving path to url\n', try_decode(listitem.getPath())], 1)
 
-        # Send playable urls to xbmc.Player() not PlayMedia() so we can play as detailed listitem.
-        # xbmc.Player().play(path, listitem)
-        # kodi_log(['Finished executing Player().Play\n', path], 1)
+        # Re-send local files to player due to "bug" (or maybe "feature") of setResolvedUrl
+        # Because setResolvedURL doesn't set id/type (sets None, "unknown" instead) to player for plugins
+        # If id/type not set to Player.GetItem things like Trakt don't work correctly.
+        # Looking for better solution than this hack.
+        if ADDON.getSettingBool('trakt_localhack') and listitem.getProperty('is_local') == 'true':
+            xbmc.Player().play(try_decode(listitem.getPath()), listitem)
+            kodi_log(['Finished executing Player().Play\n', try_decode(listitem.getPath())], 1)

@@ -19,9 +19,7 @@ class _TraktProgress():
             return response.items
         return response.items + response.next_page
 
-    # Activity cache not needed here because already do it for subroutines
     @is_authorized
-    # @use_activity_cache('episodes', 'watched_at', cache_days=cache.CACHE_SHORT)
     def _get_inprogress_shows(self):
         response = self.get_sync('watched', 'show')
         response = TraktItems(response).sort_items('watched', 'desc')
@@ -91,13 +89,13 @@ class _TraktProgress():
         if not trakt_type or not id_type:
             return hidden_items
         if progress_watched:
-            response = self.get_response_json('users', 'hidden', 'progress_watched', type=trakt_type)
+            response = self.get_response_json('users', 'hidden', 'progress_watched', type=trakt_type, limit=4095)
             hidden_items |= {i.get(trakt_type, {}).get('ids', {}).get(id_type) for i in response}
         if progress_collected:
-            response = self.get_response_json('users', 'hidden', 'progress_collected', type=trakt_type)
+            response = self.get_response_json('users', 'hidden', 'progress_collected', type=trakt_type, limit=4095)
             hidden_items |= {i.get(trakt_type, {}).get('ids', {}).get(id_type) for i in response}
         if calendar:
-            response = self.get_response_json('users', 'hidden', 'calendar', type=trakt_type)
+            response = self.get_response_json('users', 'hidden', 'calendar', type=trakt_type, limit=4095)
             hidden_items |= {i.get(trakt_type, {}).get('ids', {}).get(id_type) for i in response}
         return hidden_items
 
@@ -126,9 +124,7 @@ class _TraktProgress():
         response = PaginatedItems(response['items'], page=page, limit=10)
         return response.items + response.next_page
 
-    # Activity cache not needed here because already do it for subroutines
     @is_authorized
-    # @use_activity_cache('episodes', 'watched_at', cache_days=cache.CACHE_SHORT)
     def _get_upnext_episodes_list(self, sort_by_premiered=False):
         shows = self._get_inprogress_shows() or []
         items = [j for j in (self.get_upnext_episodes(
