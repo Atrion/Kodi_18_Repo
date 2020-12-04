@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Module: default
 # Author: jurialmunkey
 # License: GPL v.3 https://www.gnu.org/copyleft/gpl.html
@@ -36,6 +35,10 @@ def _sync_item_methods():
             'name_remove': ADDON.getLocalizedString(32294)}]
 
 
+def sync_trakt_item(trakt_type, unique_id, season=None, episode=None, id_type=None):
+    SyncItem(trakt_type, unique_id, season, episode, id_type).sync()
+
+
 class SyncItem():
     def __init__(self, trakt_type, unique_id, season=None, episode=None, id_type=None):
         self.trakt_type = trakt_type
@@ -46,10 +49,15 @@ class SyncItem():
         self.trakt_api = TraktAPI()
 
     def _build_choices(self):
-        choices = [{'name': ADDON.getLocalizedString(32298), 'method': 'userlist'}]
+        choices = self._user_list_check()
         choices += [j for j in (self._sync_item_check(**i) for i in _sync_item_methods()) if j]
         choices += [{'name': ADDON.getLocalizedString(32304), 'method': 'comments'}]
         return choices
+
+    def _user_list_check(self):
+        if xbmc.getInfoLabel("ListItem.Property(param.owner)") == 'true':
+            return [{'name': ADDON.getLocalizedString(32355), 'method': 'userlist', 'remove': True}]
+        return [{'name': ADDON.getLocalizedString(32298), 'method': 'userlist'}]
 
     def _sync_item_check(self, sync_type=None, method=None, name_add=None, name_remove=None, allow_episodes=False):
         if self.season is not None and (not allow_episodes or not self.episode):
@@ -58,7 +66,16 @@ class SyncItem():
             return {'name': name_remove, 'method': '{}/remove'.format(method)}
         return {'name': name_add, 'method': method}
 
-    def _sync_userlist(self):
+    def _sync_userlist_addlist(self):
+        name = xbmcgui.Dialog().input(ADDON.getLocalizedString(32356))
+        if not name:
+            return
+        response = self.trakt_api.post_response('users/me/lists', postdata={'name': name})
+        if not response or not response.json():
+            return
+        return response.json().get('ids', {}).get('slug')
+
+    def _sync_userlist_getlist(self):
         with busy_dialog():
             list_sync = self.trakt_api.get_list_of_lists('users/me/lists') or []
             list_sync.append({'label': ADDON.getLocalizedString(32299)})
@@ -66,14 +83,17 @@ class SyncItem():
         if x == -1:
             return
         if list_sync[x].get('label') == ADDON.getLocalizedString(32299):
-            return  # TODO: CREATE NEW LIST
-        list_slug = list_sync[x].get('params', {}).get('list_slug')
+            return self._sync_userlist_addlist()
+        return list_sync[x].get('params', {}).get('list_slug')
+
+    def _sync_userlist(self, remove=False, **kwargs):
+        list_slug = xbmc.getInfoLabel("ListItem.Property(param.list_slug)") if remove else self._sync_userlist_getlist()
         if not list_slug:
             return
         with busy_dialog():
             return self.trakt_api.add_list_item(
                 list_slug, self.trakt_type, self.unique_id, self.id_type,
-                season=self.season, episode=self.episode)
+                season=self.season, episode=self.episode, remove=remove)
 
     def _view_comments(self):
         trakt_type = 'show' if self.trakt_type in ['season', 'episode'] else self.trakt_type
@@ -97,15 +117,13 @@ class SyncItem():
         xbmcgui.Dialog().textviewer(name, info)
         return self._choose_comment(itemlist, comments)
 
-    def _sync_item(self, method):
+    def _sync_item(self, method, **kwargs):
         if method == 'userlist':
-            return self._sync_userlist()
+            return self._sync_userlist(**kwargs)
         if method == 'comments':
             return self._view_comments()
         with busy_dialog():
-            return self.trakt_api.sync_item(
-                method, self.trakt_type, self.unique_id, self.id_type,
-                season=self.season, episode=self.episode)
+            return self.trakt_api.sync_item(method, self.trakt_type, self.unique_id, self.id_type, self.season, self.episode)
 
     def sync(self):
         with busy_dialog():
@@ -114,8 +132,7 @@ class SyncItem():
         if x == -1:
             return
         name = choices[x].get('name')
-        method = choices[x].get('method')
-        item_sync = self._sync_item(method)
+        item_sync = self._sync_item(**choices[x])
         if item_sync == -1:
             return
         if item_sync and item_sync.status_code in [200, 201, 204]:

@@ -1,7 +1,7 @@
 import sys
 import xbmc
 import xbmcplugin
-from resources.lib.addon.constants import NO_LABEL_FORMATTING, RANDOMISED_TRAKT, RANDOMISED_LISTS, TRAKT_LIST_OF_LISTS, TMDB_BASIC_LISTS, TRAKT_BASIC_LISTS, TRAKT_SYNC_LISTS
+from resources.lib.addon.constants import NO_LABEL_FORMATTING, RANDOMISED_TRAKT, RANDOMISED_LISTS, TRAKT_LIST_OF_LISTS, TMDB_BASIC_LISTS, TRAKT_BASIC_LISTS, TRAKT_SYNC_LISTS, ROUTE_NO_ID, ROUTE_TMDB_ID
 from resources.lib.kodi.rpc import get_kodi_library, get_movie_details, get_tvshow_details, get_episode_details, get_season_details
 from resources.lib.addon.plugin import convert_type, reconfigure_legacy_params
 from resources.lib.script.router import related_lists
@@ -19,7 +19,6 @@ from resources.lib.tmdb.discover import UserDiscoverLists
 from resources.lib.api.mapping import set_show, get_empty_item
 from resources.lib.addon.parser import try_encode, try_decode, parse_paramstring, try_int
 from resources.lib.addon.setutils import split_items, random_from_list, merge_two_dicts
-# from resources.lib.addon.decorators import busy_dialog
 
 
 def filtered_item(item, key, value, exclude=False):
@@ -79,7 +78,7 @@ class Container(TMDbLists, BaseDirLists, SearchLists, UserDiscoverLists, TraktLi
             return False
         return True
 
-    def add_items(self, items=None, pagination=True, parent_params=None, kodi_db=None, tmdb_cache_only=True):
+    def add_items(self, items=None, pagination=True, parent_params=None, property_params=None, kodi_db=None, tmdb_cache_only=True):
         if not items:
             return
         check_is_aired = parent_params.get('info') not in NO_LABEL_FORMATTING
@@ -102,6 +101,7 @@ class Container(TMDbLists, BaseDirLists, SearchLists, UserDiscoverLists, TraktLi
             li.set_uids_to_info()  # Add unique ids to properties so accessible in skins
             li.set_params_reroute(self.ftv_forced_lookup, self.flatten_seasons)  # Reroute details to proper end point
             li.set_params_to_info(self.plugin_category)  # Set path params to properties for use in skins
+            li.infoproperties.update(property_params or {})
             xbmcplugin.addDirectoryItem(
                 handle=self.handle,
                 url=li.get_url(),
@@ -109,13 +109,18 @@ class Container(TMDbLists, BaseDirLists, SearchLists, UserDiscoverLists, TraktLi
                 isFolder=li.is_folder)
 
     def set_params_to_container(self, **kwargs):
+        params = {}
         for k, v in viewitems(kwargs):
             if not k or not v:
                 continue
             try:
-                xbmcplugin.setProperty(self.handle, u'Param.{}'.format(k), u'{}'.format(v))  # Set params to container properties
+                k = u'Param.{}'.format(k)
+                v = u'{}'.format(v)
+                params[k] = v
+                xbmcplugin.setProperty(self.handle, k, v)  # Set params to container properties
             except Exception as exc:
-                kodi_log(u'Error: {}\nUnable to set Param.{} to {}'.format(exc, k, v), 1)
+                kodi_log(u'Error: {}\nUnable to set param {} to {}'.format(exc, k, v), 1)
+        return params
 
     def finish_container(self, update_listing=False, plugin_category='', container_content=''):
         xbmcplugin.setPluginCategory(self.handle, plugin_category)  # Container.PluginCategory
@@ -255,14 +260,13 @@ class Container(TMDbLists, BaseDirLists, SearchLists, UserDiscoverLists, TraktLi
         return convert_type(tmdb_type, 'container')
 
     def list_randomised_trakt(self, **kwargs):
-        kwargs['info'] = RANDOMISED_TRAKT.get(kwargs.get('info'))
+        kwargs['info'] = RANDOMISED_TRAKT.get(kwargs.get('info'), {}).get('info')
         kwargs['randomise'] = True
         self.parent_params = kwargs
         return self.get_items(**kwargs)
 
     def list_randomised(self, **kwargs):
-        params = merge_two_dicts(
-            kwargs, RANDOMISED_LISTS.get(kwargs.get('info')))
+        params = merge_two_dicts(kwargs, RANDOMISED_LISTS.get(kwargs.get('info'), {}).get('params'))
         item = random_from_list(self.get_items(**params))
         if not item:
             return
@@ -274,73 +278,40 @@ class Container(TMDbLists, BaseDirLists, SearchLists, UserDiscoverLists, TraktLi
             kwargs['tmdb_type'] = 'collection'
         return self.tmdb_api.get_tmdb_id(**kwargs)
 
+    def _noop(self):
+        return None
+
+    def _get_items(self, func, **kwargs):
+        return func['lambda'](getattr(self, func['getattr']), **kwargs)
+
     def get_items(self, **kwargs):
         info = kwargs.get('info')
-        if info == 'pass':
-            return
-        if info == 'dir_search':
-            return self.list_searchdir_router(**kwargs)
-        if info == 'search':
-            return self.list_search(**kwargs)
-        if info == 'user_discover':
-            return self.list_userdiscover(**kwargs)
-        if info == 'dir_discover':
-            return self.list_discoverdir_router(**kwargs)
-        if info == 'discover':
-            return self.list_discover(**kwargs)
-        if info == 'all_items':
-            return self.list_all_items(**kwargs)
-        if info == 'trakt_userlist':
-            return self.list_userlist(**kwargs)
-        if info in ['trakt_becauseyouwatched', 'trakt_becausemostwatched']:
-            return self.list_becauseyouwatched(**kwargs)
-        if info == 'trakt_inprogress':
-            return self.list_inprogress(**kwargs)
-        if info == 'trakt_nextepisodes':
-            return self.list_nextepisodes(**kwargs)
-        if info == 'trakt_calendar':
-            return self.list_trakt_calendar(**kwargs)
-        if info == 'library_nextaired':
-            return self.list_trakt_calendar(library=True, **kwargs)
-        if info in TRAKT_LIST_OF_LISTS:
-            return self.list_lists(**kwargs)
-        if info in RANDOMISED_LISTS:
-            return self.list_randomised(**kwargs)
-        if info in RANDOMISED_TRAKT:
-            return self.list_randomised_trakt(**kwargs)
-        if info == 'trakt_sortby':
-            return self.list_trakt_sortby(**kwargs)
 
-        if info and not kwargs.get('tmdb_id'):
+        # Check routes that don't require ID lookups first
+        route = ROUTE_NO_ID
+        route.update(TRAKT_LIST_OF_LISTS)
+        route.update(RANDOMISED_LISTS)
+        route.update(RANDOMISED_TRAKT)
+
+        # Early exit if we have a route
+        if info in route:
+            return self._get_items(route[info]['route'], **kwargs)
+
+        # Check routes that require ID lookups second
+        route = ROUTE_TMDB_ID
+        route.update(TMDB_BASIC_LISTS)
+        route.update(TRAKT_BASIC_LISTS)
+        route.update(TRAKT_SYNC_LISTS)
+
+        # Early exit to basedir if no route found
+        if info not in route:
+            return self.list_basedir(info)
+
+        # Lookup up our TMDb ID
+        if not kwargs.get('tmdb_id'):
             kwargs['tmdb_id'] = self.get_tmdb_id(**kwargs)
 
-        if info == 'details':
-            return self.list_details(**kwargs)
-        if info == 'seasons':
-            return self.list_seasons(**kwargs)
-        if info == 'flatseasons':
-            return self.list_flatseasons(**kwargs)
-        if info == 'episodes':
-            return self.list_episodes(**kwargs)
-        if info == 'episode_groups':
-            return self.list_episode_groups(**kwargs)
-        if info == 'episode_group_seasons':
-            return self.list_episode_group_seasons(**kwargs)
-        if info == 'episode_group_episodes':
-            return self.list_episode_group_episodes(**kwargs)
-        if info == 'cast':
-            return self.list_cast(**kwargs)
-        if info == 'crew':
-            return self.list_crew(**kwargs)
-        if info == 'trakt_upnext':
-            return self.list_upnext(**kwargs)
-        if info in TMDB_BASIC_LISTS:
-            return self.list_tmdb(**kwargs)
-        if info in TRAKT_BASIC_LISTS:
-            return self.list_trakt(**kwargs)
-        if info in TRAKT_SYNC_LISTS:
-            return self.list_sync(**kwargs)
-        return self.list_basedir(info)
+        return self._get_items(route[info]['route'], **kwargs)
 
     def get_directory(self):
         items = self.get_items(**self.params)
@@ -350,13 +321,13 @@ class Container(TMDbLists, BaseDirLists, SearchLists, UserDiscoverLists, TraktLi
             items,
             pagination=self.pagination,
             parent_params=self.parent_params,
+            property_params=self.set_params_to_container(**self.params),
             kodi_db=self.kodi_db,
             tmdb_cache_only=self.tmdb_cache_only)
         self.finish_container(
             update_listing=self.update_listing,
             plugin_category=self.plugin_category,
             container_content=self.container_content)
-        self.set_params_to_container(**self.params)
         if self.container_update:
             xbmc.executebuiltin(try_encode(u'Container.Update({})'.format(self.container_update)))
         if self.container_refresh:

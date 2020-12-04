@@ -1,8 +1,29 @@
+import _strptime
+import datetime
 import xbmc
 import time
-import datetime
 from resources.lib.addon.plugin import kodi_log, ADDON
 from resources.lib.addon.decorators import try_except_log
+
+
+def get_datetime_combine(*args, **kwargs):
+    return datetime.datetime.combine(*args, **kwargs)
+
+
+def get_datetime_time(*args, **kwargs):
+    return datetime.time(*args, **kwargs)
+
+
+def get_datetime_now():
+    return datetime.datetime.now()
+
+
+def get_datetime_today():
+    return datetime.datetime.today()
+
+
+def get_timedelta(*args, **kwargs):
+    return datetime.timedelta(*args, **kwargs)
 
 
 def get_timestamp(timestamp=None):
@@ -29,10 +50,15 @@ def format_date(time_str, str_fmt="%A", time_fmt="%Y-%m-%d", time_lim=10, utc_co
 @try_except_log('lib.timedate - date_in_range', notification=False)
 def date_in_range(date_str, days=1, start_date=0, date_fmt="%Y-%m-%dT%H:%M:%S", date_lim=19, utc_convert=False):
     date_a = datetime.date.today() + datetime.timedelta(days=start_date)
-    date_z = date_a + datetime.timedelta(days=days)
-    mydate = convert_timestamp(date_str, date_fmt, date_lim, utc_convert=utc_convert).date()
-    if not mydate or not date_a or not date_z:
+    if not date_a:
         return
+    date_z = date_a + datetime.timedelta(days=days)
+    if not date_z:
+        return
+    mydate = convert_timestamp(date_str, date_fmt, date_lim, utc_convert=utc_convert)
+    if not mydate:
+        return
+    mydate = mydate.date()
     if mydate >= date_a and mydate < date_z:
         return date_str
 

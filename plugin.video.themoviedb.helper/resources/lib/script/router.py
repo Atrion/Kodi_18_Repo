@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Module: default
 # Author: jurialmunkey
 # License: GPL v.3 https://www.gnu.org/copyleft/gpl.html
@@ -19,14 +18,12 @@ from resources.lib.container.basedir import get_basedir_details
 from resources.lib.fanarttv.api import FanartTV
 from resources.lib.tmdb.api import TMDb
 from resources.lib.trakt.api import TraktAPI, get_sort_methods
-from resources.lib.script.sync import SyncItem
+from resources.lib.script.sync import sync_trakt_item
 from resources.lib.window.manager import WindowManager
 from resources.lib.player.players import Players
 from resources.lib.player.configure import configure_players
 from resources.lib.monitor.images import ImageFunctions
-
-
-WM_PARAMS = ['add_path', 'add_query', 'close_dialog', 'reset_path', 'call_id', 'call_path', 'call_update']
+from resources.lib.container.listitem import ListItem
 
 
 # Get TMDb ID decorator
@@ -73,6 +70,11 @@ def run_plugin(**kwargs):
         xbmc.executebuiltin(try_encode(u'RunPlugin({})'.format(kwargs.get('run_plugin'))))
 
 
+def container_refresh():
+    xbmc.executebuiltin('Container.Refresh')
+    xbmc.executebuiltin('UpdateLibrary(video,/fake/path/to/force/refresh/on/home)')
+
+
 @map_kwargs({'play': 'tmdb_type'})
 @get_tmdb_id
 def play_external(**kwargs):
@@ -116,18 +118,32 @@ def split_value(split_value, separator=None, **kwargs):
 @is_in_kwargs({'tmdb_type': ['movie', 'tv']})
 @get_tmdb_id
 def sync_trakt(**kwargs):
-    SyncItem(
+    sync_trakt_item(
         trakt_type=convert_type(kwargs['tmdb_type'], 'trakt', season=kwargs.get('season'), episode=kwargs.get('episode')),
         unique_id=kwargs['tmdb_id'],
         season=kwargs.get('season'),
         episode=kwargs.get('episode'),
-        id_type='tmdb').sync()
+        id_type='tmdb')
+
+
+def _get_ftv_id(**kwargs):
+    details = refresh_details(confirm=False, **kwargs)
+    if not details:
+        return
+    return ListItem(**details).get_ftv_id()
 
 
 def manage_artwork(ftv_id=None, ftv_type=None, **kwargs):
+    if not ftv_type:
+        return
+    if not ftv_id:
+        ftv_id = _get_ftv_id(**kwargs)
+    if not ftv_id:
+        return
     FanartTV().manage_artwork(ftv_id, ftv_type)
 
 
+@get_tmdb_id
 def related_lists(tmdb_id=None, tmdb_type=None, season=None, episode=None, container_update=True, include_play=False, **kwargs):
     if not tmdb_id or not tmdb_type:
         return
@@ -166,15 +182,16 @@ def update_players():
     downloader.get_extracted_zip()
 
 
-def refresh_details(tmdb_id=None, tmdb_type=None, season=None, episode=None, **kwargs):
+@get_tmdb_id
+def refresh_details(tmdb_id=None, tmdb_type=None, season=None, episode=None, confirm=True, **kwargs):
     if not tmdb_id or not tmdb_type:
         return
     with busy_dialog():
         details = TMDb().get_details(tmdb_type, tmdb_id, season, episode, cache_refresh=True)
-    if details:
+    if details and confirm:
         xbmcgui.Dialog().ok('TMDbHelper', ADDON.getLocalizedString(32234).format(tmdb_type, tmdb_id))
-        xbmc.executebuiltin('Container.Refresh')
-        xbmc.executebuiltin('UpdateLibrary(video,/fake/path/to/force/refresh/on/home)')
+        container_refresh()
+    return details
 
 
 def kodi_setting(kodi_setting, **kwargs):
@@ -193,6 +210,21 @@ def user_list(user_list, user_slug=None, **kwargs):
     add_to_library(info='trakt', user_slug=user_slug, list_slug=user_list, confirm=True, allow_update=True, busy_spinner=True)
 
 
+def delete_list(delete_list, **kwargs):
+    if not xbmcgui.Dialog().yesno(ADDON.getLocalizedString(32358), ADDON.getLocalizedString(32357).format(delete_list)):
+        return
+    TraktAPI().delete_response('users/me/lists', delete_list)
+    container_refresh()
+
+
+def rename_list(rename_list, **kwargs):
+    name = xbmcgui.Dialog().input(ADDON.getLocalizedString(32359))
+    if not name:
+        return
+    TraktAPI().post_response('users/me/lists', rename_list, postdata={'name': name}, response_method='put')
+    container_refresh()
+
+
 def like_list(like_list, user_slug=None, delete=False, **kwargs):
     user_slug = user_slug or 'me'
     if not user_slug or not like_list:
@@ -200,8 +232,7 @@ def like_list(like_list, user_slug=None, delete=False, **kwargs):
     TraktAPI().like_userlist(user_slug=user_slug, list_slug=like_list, confirmation=True, delete=delete)
     if not delete:
         return
-    xbmc.executebuiltin('Container.Refresh')
-    xbmc.executebuiltin('UpdateLibrary(video,/fake/path/to/force/refresh/on/home)')
+    container_refresh()
 
 
 def set_defaultplayer(**kwargs):
@@ -289,6 +320,8 @@ class Script(object):
         'related_lists': lambda **kwargs: related_lists(**kwargs),
         'user_list': lambda **kwargs: user_list(**kwargs),
         'like_list': lambda **kwargs: like_list(**kwargs),
+        'delete_list': lambda **kwargs: delete_list(**kwargs),
+        'rename_list': lambda **kwargs: rename_list(**kwargs),
         'blur_image': lambda **kwargs: blur_image(**kwargs),
         'image_colors': lambda **kwargs: image_colors(**kwargs),
         'monitor_userlist': lambda **kwargs: monitor_userlist(),
@@ -300,10 +333,15 @@ class Script(object):
         'play_media': lambda **kwargs: play_media(**kwargs),
         'run_plugin': lambda **kwargs: run_plugin(**kwargs),
         'log_request': lambda **kwargs: log_request(**kwargs),
-        'play': lambda **kwargs: play_external(**kwargs)
+        'play': lambda **kwargs: play_external(**kwargs),
+        'add_path': lambda **kwargs: WindowManager(**kwargs).router(),
+        'add_query': lambda **kwargs: WindowManager(**kwargs).router(),
+        'close_dialog': lambda **kwargs: WindowManager(**kwargs).router(),
+        'reset_path': lambda **kwargs: WindowManager(**kwargs).router(),
+        'call_id': lambda **kwargs: WindowManager(**kwargs).router(),
+        'call_path': lambda **kwargs: WindowManager(**kwargs).router(),
+        'call_update': lambda **kwargs: WindowManager(**kwargs).router()
     }
-    for func in WM_PARAMS:
-        routing_table[func] = lambda **kwargs: WindowManager(**kwargs).router()
 
     def router(self):
         if not self.params:

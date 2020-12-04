@@ -1,25 +1,26 @@
-import datetime
 import resources.lib.addon.cache as cache
 from resources.lib.addon.cache import use_simple_cache
 from resources.lib.container.pages import PaginatedItems
 from resources.lib.trakt.items import TraktItems
 from resources.lib.trakt.decorators import is_authorized, use_activity_cache, use_lastupdated_cache
 from resources.lib.addon.parser import try_int
-from resources.lib.addon.timedate import convert_timestamp, date_in_range, get_region_date
+from resources.lib.addon.timedate import convert_timestamp, date_in_range, get_region_date, get_datetime_today, get_timedelta
 from resources.lib.addon.plugin import viewitems
+from resources.lib.api.mapping import get_empty_item
 # from resources.lib.addon.decorators import timer_report
 
 
 class _TraktProgress():
     @is_authorized
-    def get_inprogress_shows_list(self, page=1, limit=20, params=None, next_page=True):
-        response = TraktItems(self._get_inprogress_shows(), trakt_type='show').build_items(params_def=params)
+    def get_inprogress_shows_list(self, page=1, limit=20, params=None, next_page=True, sort_by=None, sort_how=None):
+        response = self._get_upnext_episodes_list(sort_by_premiered=True) if sort_by == 'year' else self._get_inprogress_shows()
+        response = TraktItems(response, trakt_type='show').build_items(
+            params_def=params, sort_by=sort_by if sort_by != 'year' else 'unsorted', sort_how=sort_how)
         response = PaginatedItems(response['items'], page=page, limit=limit)
         if not next_page:
             return response.items
         return response.items + response.next_page
 
-    @is_authorized
     def _get_inprogress_shows(self):
         response = self.get_sync('watched', 'show')
         response = TraktItems(response).sort_items('watched', 'desc')
@@ -41,8 +42,9 @@ class _TraktProgress():
             self.get_episodes_watchcount, slug, 'slug', tvshow=item, count_progress=True,
             cache_name='TraktAPI.get_episodes_watchcount.response.slug.{}.True'.format(slug),
             sync_info=item)
-        if aired_episodes > watch_episodes:
-            return item
+        if aired_episodes <= watch_episodes:
+            return
+        return item
 
     @is_authorized
     @use_activity_cache('episodes', 'watched_at', cache_days=cache.CACHE_LONG)
@@ -217,72 +219,68 @@ class _TraktProgress():
         user = 'my' if user else 'all'
         return self.get_response_json('calendars', user, trakt_type, start_date, days, extended='full')
 
-    @use_simple_cache(cache_days=cache.CACHE_SHORT)
+    @use_simple_cache(cache_days=0.25)
     def get_calendar_episodes(self, startdate=0, days=1, user=True):
         # Broaden date range in case utc conversion bumps into different day
         mod_date = try_int(startdate) - 1
         mod_days = try_int(days) + 2
-        date = datetime.date.today() + datetime.timedelta(days=mod_date)
+        date = get_datetime_today() + get_timedelta(days=mod_date)
         return self.get_calendar('shows', user, start_date=date.strftime('%Y-%m-%d'), days=mod_days)
 
+    def _get_calendar_episode_item(self, i):
+        air_date = convert_timestamp(i.get('first_aired'), utc_convert=True)
+        item = get_empty_item()
+        item['label'] = i.get('episode', {}).get('title')
+        item['infolabels'] = {
+            'mediatype': 'episode',
+            'premiered': air_date.strftime('%Y-%m-%d'),
+            'year': air_date.strftime('%Y'),
+            'title': item['label'],
+            'episode': i.get('episode', {}).get('number'),
+            'season': i.get('episode', {}).get('season'),
+            'tvshowtitle': i.get('show', {}).get('title'),
+            'duration': try_int(i.get('episode', {}).get('runtime', 0)) * 60,
+            'plot': i.get('episode', {}).get('overview'),
+            'mpaa': i.get('show', {}).get('certification')}
+        item['infoproperties'] = {
+            'air_date': get_region_date(air_date, 'datelong'),
+            'air_time': get_region_date(air_date, 'time'),
+            'air_day': air_date.strftime('%A'),
+            'air_day_short': air_date.strftime('%a'),
+            'air_date_short': air_date.strftime('%d %b')}
+        item['unique_ids'] = {'tvshow.{}'.format(k): v for k, v in viewitems(i.get('show', {}).get('ids', {}))}
+        item['params'] = {
+            'info': 'details',
+            'tmdb_type': 'tv',
+            'tmdb_id': i.get('show', {}).get('ids', {}).get('tmdb'),
+            'episode': i.get('episode', {}).get('number'),
+            'season': i.get('episode', {}).get('season')}
+        return item
+
+    def _get_calendar_episode_item_bool(self, i, kodi_db, user, startdate, days):
+        if kodi_db and not user and not kodi_db.get_info(
+                info='dbid',
+                tmdb_id=i.get('show', {}).get('ids', {}).get('tmdb'),
+                tvdb_id=i.get('show', {}).get('ids', {}).get('tvdb'),
+                imdb_id=i.get('show', {}).get('ids', {}).get('imdb')):
+            return False
+        # Do some timezone conversion so we check that we're in the date range for our timezone
+        if not date_in_range(i.get('first_aired'), utc_convert=True, start_date=startdate, days=days):
+            return False
+        return True
+
+    @use_simple_cache(cache_days=0.25)
     def _get_calendar_episodes_list(self, startdate=0, days=1, user=True, kodi_db=None):
         # Get response
         response = self.get_calendar_episodes(startdate=startdate, days=days, user=user)
         if not response:
             return
-
         # Reverse items for date ranges in past
         traktitems = reversed(response) if startdate < -1 else response
-
-        items = []
-        for i in traktitems:
-            # For library episodes we need to check show is in the library
-            if kodi_db and not user and not kodi_db.get_info(
-                    info='dbid',
-                    tmdb_id=i.get('show', {}).get('ids', {}).get('tmdb'),
-                    tvdb_id=i.get('show', {}).get('ids', {}).get('tvdb'),
-                    imdb_id=i.get('show', {}).get('ids', {}).get('imdb')):
-                continue
-
-            # Do some timezone conversion so we check that we're in the date range for our timezone
-            if not date_in_range(i.get('first_aired'), utc_convert=True, start_date=startdate, days=days):
-                continue
-            air_date = convert_timestamp(i.get('first_aired'), utc_convert=True)
-            item = {}
-            item['label'] = i.get('episode', {}).get('title')
-            item['infolabels'] = {
-                'mediatype': 'episode',
-                'premiered': air_date.strftime('%Y-%m-%d'),
-                'year': air_date.strftime('%Y'),
-                'title': item['label'],
-                'episode': i.get('episode', {}).get('number'),
-                'season': i.get('episode', {}).get('season'),
-                'tvshowtitle': i.get('show', {}).get('title'),
-                'duration': try_int(i.get('episode', {}).get('runtime', 0)) * 60,
-                'plot': i.get('episode', {}).get('overview'),
-                'mpaa': i.get('show', {}).get('certification')}
-            item['infoproperties'] = {
-                'air_date': get_region_date(air_date, 'datelong'),
-                'air_time': get_region_date(air_date, 'time'),
-                'air_day': air_date.strftime('%A'),
-                'air_day_short': air_date.strftime('%a'),
-                'air_date_short': air_date.strftime('%d %b')}
-            item['unique_ids'] = {'tvshow.{}'.format(k): v for k, v in viewitems(i.get('show', {}).get('ids', {}))}
-            item['params'] = {
-                'info': 'details',
-                'tmdb_type': 'tv',
-                'tmdb_id': i.get('show', {}).get('ids', {}).get('tmdb'),
-                'episode': i.get('episode', {}).get('number'),
-                'season': i.get('episode', {}).get('season')}
-            items.append(item)
-        return items
+        return [self._get_calendar_episode_item(i) for i in traktitems if self._get_calendar_episode_item_bool(
+            i, kodi_db, user, startdate, days)]
 
     def get_calendar_episodes_list(self, startdate=0, days=1, user=True, kodi_db=None, page=1, limit=20):
-        # cache_name = 'trakt.calendar.episodes.{}.{}.{}.{}'.format(startdate, days, user, kodi_db is not None)
-        # response_items = cache.use_cache(
-        #     self._get_calendar_episodes_list, startdate, days, user, kodi_db,
-        #     cache_name=cache_name,
-        #     cache_days=1)
         response_items = self._get_calendar_episodes_list(startdate, days, user, kodi_db)
         response = PaginatedItems(response_items, page=page, limit=limit)
         if response and response.items:

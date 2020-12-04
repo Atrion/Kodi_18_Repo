@@ -23,19 +23,19 @@ CLIENT_SECRET = '15119384341d9a61c751d8d515acbc0dd801001d4ebe85d3eef9885df80ee4d
 def get_sort_methods():
     return [
         {
-            'name': '{}: {}'.format(ADDON.getLocalizedString(32287), ADDON.getLocalizedString(32286)),
+            'name': u'{}: {}'.format(ADDON.getLocalizedString(32287), ADDON.getLocalizedString(32286)),
             'params': {'sort_by': 'rank', 'sort_how': 'asc'}},
         {
-            'name': '{}: {}'.format(ADDON.getLocalizedString(32287), ADDON.getLocalizedString(32106)),
+            'name': u'{}: {}'.format(ADDON.getLocalizedString(32287), ADDON.getLocalizedString(32106)),
             'params': {'sort_by': 'added', 'sort_how': 'desc'}},
         {
-            'name': '{}: {}'.format(ADDON.getLocalizedString(32287), xbmc.getLocalizedString(369)),
+            'name': u'{}: {}'.format(ADDON.getLocalizedString(32287), xbmc.getLocalizedString(369)),
             'params': {'sort_by': 'title', 'sort_how': 'asc'}},
         {
-            'name': '{}: {}'.format(ADDON.getLocalizedString(32287), xbmc.getLocalizedString(345)),
+            'name': u'{}: {}'.format(ADDON.getLocalizedString(32287), xbmc.getLocalizedString(345)),
             'params': {'sort_by': 'year', 'sort_how': 'desc'}},
         {
-            'name': '{}: {}'.format(ADDON.getLocalizedString(32287), xbmc.getLocalizedString(590)),
+            'name': u'{}: {}'.format(ADDON.getLocalizedString(32287), xbmc.getLocalizedString(590)),
             'params': {'sort_by': 'random'}}]
 
 
@@ -159,6 +159,12 @@ class _TraktLists():
             # Owner of list so set param to allow deleting later
             else:
                 item['params']['owner'] = 'true'
+                item['context_menu'] += [(
+                    xbmc.getLocalizedString(118), 'Runscript(plugin.video.themoviedb.helper,{})'.format(
+                        'rename_list={list_slug}'.format(**item['params'])))]
+                item['context_menu'] += [(
+                    xbmc.getLocalizedString(117), 'Runscript(plugin.video.themoviedb.helper,{})'.format(
+                        'delete_list={list_slug}'.format(**item['params'])))]
 
             items.append(item)
         if not next_page:
@@ -184,10 +190,7 @@ class _TraktLists():
 
 class _TraktSync():
     def get_sync_item(self, trakt_type, unique_id, id_type, season=None, episode=None):
-        """
-        methods = history watchlist collection recommendations
-        trakt_type = movie, show, season, episode
-        """
+        """ Gets an item configured for syncing as postdata """
         if not unique_id or not id_type or not trakt_type:
             return
         base_trakt_type = 'show' if trakt_type in ['season', 'episode'] else trakt_type
@@ -197,13 +200,13 @@ class _TraktSync():
             return
         return self.get_details(base_trakt_type, unique_id, season=season, episode=episode, extended=None)
 
-    def add_list_item(self, list_slug, trakt_type, unique_id, id_type, season=None, episode=None, user_slug=None):
+    def add_list_item(self, list_slug, trakt_type, unique_id, id_type, season=None, episode=None, user_slug=None, remove=False):
         item = self.get_sync_item(trakt_type, unique_id, id_type, season, episode)
         if not item:
             return
         user_slug = user_slug or 'me'
         return self.post_response(
-            'users', user_slug, 'lists', list_slug, 'items',
+            'users', user_slug, 'lists', list_slug, 'items/remove' if remove else 'items',
             postdata={'{}s'.format(trakt_type): [item]})
 
     def sync_item(self, method, trakt_type, unique_id, id_type, season=None, episode=None):
@@ -417,10 +420,8 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
         self.interval = self.code.get('interval', 5)
         self.expires_in = self.code.get('expires_in', 0)
         self.auth_dialog = xbmcgui.DialogProgress()
-        self.auth_dialog.create(
-            ADDON.getLocalizedString(32097),
-            ADDON.getLocalizedString(32096),
-            ADDON.getLocalizedString(32095) + ': [B]' + self.code.get('user_code') + '[/B]')
+        self.auth_dialog.create(ADDON.getLocalizedString(32097), '{}\n{}: [B]{}[/B]'.format(
+            ADDON.getLocalizedString(32096), ADDON.getLocalizedString(32095), self.code.get('user_code')))
         self.poller()
 
     def refresh_token(self):
@@ -495,11 +496,12 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
 
     def post_response(self, *args, **kwargs):
         postdata = kwargs.pop('postdata', None)
+        response_method = kwargs.pop('response_method', 'post')
         return self.get_simple_api_request(
             self.get_request_url(*args, **kwargs),
             headers=self.headers,
             postdata=dumps(postdata) if postdata else None,
-            method='post')
+            method=response_method)
 
     def get_response(self, *args, **kwargs):
         return self.get_api_request(self.get_request_url(*args, **kwargs), headers=self.headers)

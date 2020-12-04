@@ -23,7 +23,7 @@ def set_show(item, base_item=None):
     item['unique_ids'].update(
         {'tvshow.{}'.format(k): v for k, v in viewitems(base_item.get('unique_ids', {}))})
     item['infoproperties'].update(
-        {'tvshow.{}'.format(k): v for k, v in viewitems(base_item.get('infolabels', {})) if type(v) in [str, int]})
+        {'tvshow.{}'.format(k): v for k, v in viewitems(base_item.get('infolabels', {})) if type(v) not in [dict, list, tuple]})
     item['infolabels']['tvshowtitle'] = base_item['infolabels'].get('title')
     item['unique_ids']['tmdb'] = item['unique_ids'].get('tvshow.tmdb')
     return item
@@ -38,7 +38,9 @@ class _ItemMapper(object):
                 if not v or item[d].get(k):
                     continue
                 item[d][k] = v
-        return set_show(item, base_item) if tmdb_type in ['season', 'episode', 'tv'] else item
+        if tmdb_type in ['season', 'episode', 'tv']:
+            return set_show(item, base_item)
+        return item
 
     def map_item(self, item, i):
         sm = self.standard_map or {}
