@@ -1,12 +1,14 @@
-Version 5.1.17 (December 07, 2020)
+Version 5.1.25 (February 20, 2021)
 - Code Base Changes:
-    - Regression error with PY2
+    - None
 
 - Resolvers Added:
     - None
  
 - Resolvers Fixed/Updated:
-    - None 
+    - fembed
+    - tvlogy
+
 
 - Resolvers Removed
     - None

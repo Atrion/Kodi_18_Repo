@@ -9,7 +9,7 @@ import unicodedata
 from resources.lib.addon.timedate import get_timedelta, get_datetime_now
 from resources.lib.addon.parser import try_int, try_encode
 from resources.lib.addon.plugin import ADDON, ADDONDATA, kodi_log
-from resources.lib.addon.constants import VALID_FILECHARS
+from resources.lib.addon.constants import ALPHANUM_CHARS, INVALID_FILECHARS
 from resources.lib.addon.timedate import is_future_timestamp
 try:
     import cPickle as _pickle
@@ -19,17 +19,16 @@ if sys.version_info[0] >= 3:
     unicode = str  # In Py3 str is now unicode
 
 
-def validify_filename(filename):
+def validify_filename(filename, alphanum=False):
     try:
         filename = unicode(filename, 'utf-8')
     except NameError:  # unicode is a default on python 3
         pass
     except TypeError:  # already unicode
         pass
-    filename = str(unicodedata.normalize('NFD', filename).encode('ascii', 'ignore').decode("utf-8"))
-    filename = ''.join(c for c in filename if c in VALID_FILECHARS)
-    filename = filename[:-1] if filename.endswith('.') else filename
-    return filename
+    filename = unicodedata.normalize('NFD', filename)
+    filename = u''.join([c for c in filename if (not alphanum or c in ALPHANUM_CHARS) and c not in INVALID_FILECHARS])
+    return filename.strip('.')
 
 
 def normalise_filesize(filesize):
@@ -38,9 +37,9 @@ def normalise_filesize(filesize):
     i_str = ['B', 'KB', 'MB', 'GB', 'TB']
     for i in i_str:
         if filesize < i_flt:
-            return '{:.2f} {}'.format(filesize, i)
+            return u'{:.2f} {}'.format(filesize, i)
         filesize = filesize / i_flt
-    return '{:.2f} {}'.format(filesize, 'PB')
+    return u'{:.2f} {}'.format(filesize, 'PB')
 
 
 def get_files_in_folder(folder, regex):
@@ -73,8 +72,8 @@ def get_tmdb_id_nfo(basedir, foldername, tmdb_type='tv'):
         # Check our nfo files for TMDb ID
         for nfo in nfo_list:
             content = read_file(folder + nfo)  # Get contents of .nfo file
-            tmdb_id = content.replace('https://www.themoviedb.org/{}/'.format(tmdb_type), '')  # Clean content to retrieve tmdb_id
-            tmdb_id = tmdb_id.replace('&islocal=True', '')
+            tmdb_id = content.replace(u'https://www.themoviedb.org/{}/'.format(tmdb_type), '')  # Clean content to retrieve tmdb_id
+            tmdb_id = tmdb_id.replace(u'&islocal=True', '')
             if tmdb_id:
                 return tmdb_id
 
@@ -82,23 +81,37 @@ def get_tmdb_id_nfo(basedir, foldername, tmdb_type='tv'):
         kodi_log(u'ERROR GETTING TMDBID FROM NFO:\n{}'.format(exc))
 
 
+def get_file_path(folder, filename, join_addon_data=True):
+    return os.path.join(get_write_path(folder, join_addon_data), filename)
+
+
 def delete_file(folder, filename, join_addon_data=True):
-    fullpath = os.path.join(_get_write_path(folder, join_addon_data), filename)
-    xbmcvfs.delete(fullpath)
+    xbmcvfs.delete(get_file_path(folder, filename, join_addon_data))
 
 
 def dumps_to_file(data, folder, filename, indent=2, join_addon_data=True):
-    path = os.path.join(_get_write_path(folder, join_addon_data), filename)
+    path = os.path.join(get_write_path(folder, join_addon_data), filename)
     with open(path, 'w') as file:
         json.dump(data, file, indent=indent)
     return path
 
 
-def _get_write_path(folder, join_addon_data=True):
+def get_write_path(folder, join_addon_data=True):
     main_dir = os.path.join(xbmc.translatePath(ADDONDATA), folder) if join_addon_data else xbmc.translatePath(folder)
     if not os.path.exists(main_dir):
         os.makedirs(main_dir)
     return main_dir
+
+
+def _del_file(folder, filename):
+    file = os.path.join(folder, filename)
+    os.remove(file)
+
+
+def del_old_files(folder, limit=1):
+    folder = get_write_path(folder, True)
+    for filename in sorted(os.listdir(folder))[:-limit]:
+        _del_file(folder, filename)
 
 
 def make_path(path, warn_dialog=False):
@@ -113,17 +126,17 @@ def make_path(path, warn_dialog=False):
     if not warn_dialog:
         return
     xbmcgui.Dialog().ok(
-        'XBMCVFS', '{} [B]{}[/B]\n{}'.format(
+        'XBMCVFS', u'{} [B]{}[/B]\n{}'.format(
             ADDON.getLocalizedString(32122), path, ADDON.getLocalizedString(32123)))
 
 
-def get_pickle_name(cache_name):
+def get_pickle_name(cache_name, alphanum=False):
     cache_name = cache_name or ''
     cache_name = cache_name.replace('\\', '_').replace('/', '_').replace('.', '_').replace('?', '_').replace('&', '_').replace('=', '_').replace('__', '_')
-    return validify_filename(cache_name).rstrip('_')
+    return validify_filename(cache_name, alphanum=alphanum).rstrip('_')
 
 
-def set_pickle(my_object, cache_name, cache_days=14):
+def set_pickle(my_object, cache_name, cache_days=14, json_dump=False):
     if not my_object:
         return
     cache_name = get_pickle_name(cache_name)
@@ -131,18 +144,18 @@ def set_pickle(my_object, cache_name, cache_days=14):
         return
     timestamp = get_datetime_now() + get_timedelta(days=cache_days)
     cache_obj = {'my_object': my_object, 'expires': timestamp.strftime("%Y-%m-%dT%H:%M:%S")}
-    with open(os.path.join(_get_write_path('pickle'), cache_name), 'wb') as file:
-        _pickle.dump(cache_obj, file)
+    with open(os.path.join(get_write_path('pickle'), cache_name), 'w' if json_dump else 'wb') as file:
+        json.dump(cache_obj, file, indent=4) if json_dump else _pickle.dump(cache_obj, file)
     return my_object
 
 
-def get_pickle(cache_name):
+def get_pickle(cache_name, json_dump=False):
     cache_name = get_pickle_name(cache_name)
     if not cache_name:
         return
     try:
-        with open(os.path.join(_get_write_path('pickle'), cache_name), 'rb') as file:
-            cache_obj = _pickle.load(file)
+        with open(os.path.join(get_write_path('pickle'), cache_name), 'r' if json_dump else 'rb') as file:
+            cache_obj = json.load(file) if json_dump else _pickle.load(file)
     except IOError:
         cache_obj = None
     if cache_obj and is_future_timestamp(cache_obj.get('expires', '')):

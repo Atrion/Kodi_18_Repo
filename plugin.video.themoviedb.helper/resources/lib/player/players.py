@@ -14,6 +14,7 @@ from resources.lib.player.details import get_item_details, get_detailed_item, ge
 from resources.lib.player.inputter import KeyboardInputter
 from resources.lib.player.configure import get_players_from_file
 from resources.lib.addon.constants import PLAYERS_PRIORITY
+from resources.lib.addon.decorators import busy_dialog
 from string import Formatter
 if sys.version_info[0] >= 3:
     unicode = str  # In Py3 str is now unicode
@@ -52,7 +53,7 @@ def wait_for_player(to_start=None, timeout=5, poll=0.25, stop_after=0):
     return timeout
 
 
-def resolve_to_dummy(handle=None, stop_after=1):
+def resolve_to_dummy(handle=None, stop_after=1, delay_wait=0):
     """
     Kodi does 5x retries to resolve url if isPlayable property is set - strm files force this property.
     However, external plugins might not resolve directly to URL and instead might require PlayMedia.
@@ -65,7 +66,7 @@ def resolve_to_dummy(handle=None, stop_after=1):
         return
 
     # Set our dummy resolved url
-    path = '{}/resources/dummy.mp4'.format(ADDONPATH)
+    path = u'{}/resources/dummy.mp4'.format(ADDONPATH)
     kodi_log(['lib.player.players - attempt to resolve dummy file\n', path], 1)
     xbmcplugin.setResolvedUrl(handle, True, ListItem(path=path).get_listitem())
 
@@ -79,12 +80,16 @@ def resolve_to_dummy(handle=None, stop_after=1):
         kodi_log(['lib.player.players - stopping dummy file timeout\n', path], 1)
         return -1
 
+    # Added delay
+    with busy_dialog(False if delay_wait < 1 else True):
+        xbmc.Monitor().waitForAbort(delay_wait)
+
     # Success
     kodi_log(['lib.player.players -- successfully resolved dummy file\n', path], 1)
 
 
 class Players(object):
-    def __init__(self, tmdb_type, tmdb_id=None, season=None, episode=None, ignore_default=False, **kwargs):
+    def __init__(self, tmdb_type, tmdb_id=None, season=None, episode=None, ignore_default=False, islocal=False, **kwargs):
         self.players = get_players_from_file()
         self.details = get_item_details(tmdb_type, tmdb_id, season, episode)
         self.item = get_detailed_item(tmdb_type, tmdb_id, season, episode, details=self.details) or {}
@@ -94,6 +99,9 @@ class Players(object):
         self.ignore_default = ignore_default
         self.tmdb_type, self.tmdb_id, self.season, self.episode = tmdb_type, tmdb_id, season, episode
         self.dummy_duration = try_float(ADDON.getSettingString('dummy_duration')) or 1.0
+        self.dummy_delay = try_float(ADDON.getSettingString('dummy_delay')) or 1.0
+        self.force_xbmcplayer = ADDON.getSettingBool('force_xbmcplayer')
+        self.is_strm = islocal
 
     def _check_assert(self, keys=[]):
         if not self.item:
@@ -131,12 +139,12 @@ class Players(object):
         if not file:
             return []
         return [{
-            'name': '{} Kodi'.format(ADDON.getLocalizedString(32061)),
+            'name': u'{} Kodi'.format(ADDON.getLocalizedString(32061)),
             'is_folder': False,
             'is_local': True,
             'is_resolvable': "true",
             'plugin_name': 'xbmc.core',
-            'plugin_icon': '{}/resources/icons/other/kodi.png'.format(ADDONPATH),
+            'plugin_icon': u'{}/resources/icons/other/kodi.png'.format(ADDONPATH),
             'actions': file}]
 
     def _get_local_file(self, file):
@@ -146,6 +154,7 @@ class Players(object):
             contents = read_file(file)
             if contents.startswith('plugin://plugin.video.themoviedb.helper'):
                 return
+            return contents
         return file
 
     def _get_local_movie(self):
@@ -193,11 +202,11 @@ class Players(object):
         dialog_players = [] if not clear_player else [{
             'name': ADDON.getLocalizedString(32311),
             'plugin_name': 'plugin.video.themoviedb.helper',
-            'plugin_icon': '{}/resources/icons/other/kodi.png'.format(ADDONPATH)}]
+            'plugin_icon': u'{}/resources/icons/other/kodi.png'.format(ADDONPATH)}]
         dialog_players += self.dialog_players
         players = [ListItem(
             label=i.get('name'),
-            label2='{} v{}'.format(i.get('plugin_name'), xbmcaddon.Addon(i.get('plugin_name', '')).getAddonInfo('version')),
+            label2=u'{} v{}'.format(i.get('plugin_name'), xbmcaddon.Addon(i.get('plugin_name', '')).getAddonInfo('version')),
             art={'thumb': i.get('plugin_icon')}).get_listitem() for i in dialog_players]
         x = xbmcgui.Dialog().select(ADDON.getLocalizedString(32042), players, useDetails=detailed)
         if x == -1:
@@ -425,8 +434,6 @@ class Players(object):
         path = try_decode(listitem.getPath())
         if listitem.getProperty('is_folder') == 'true':
             return format_folderpath(path)
-        if path.endswith('.strm'):
-            return path
         if not handle or listitem.getProperty('is_resolvable') == 'false':
             return path
         if listitem.getProperty('is_resolvable') == 'select' and not xbmcgui.Dialog().yesno(
@@ -463,7 +470,8 @@ class Players(object):
 
         # If a folder we need to resolve to dummy and then open folder
         if listitem.getProperty('is_folder') == 'true':
-            resolve_to_dummy(handle, self.dummy_duration)
+            if self.is_strm or not ADDON.getSettingBool('only_resolve_strm'):
+                resolve_to_dummy(handle, self.dummy_duration, self.dummy_delay)
             xbmc.executebuiltin(try_encode(action))
             kodi_log(['lib.player - finished executing action\n', action], 1)
             return
@@ -472,11 +480,14 @@ class Players(object):
         if self.playerstring:
             get_property('PlayerInfoString', set_property=self.playerstring)
 
-        # If PlayMedia method chosen re-route to Player()
+        # If PlayMedia method chosen re-route to Player() unless expert settings on
         if action:
-            resolve_to_dummy(handle, self.dummy_duration)  # If we're calling external we need to resolve to dummy
-            xbmc.Player().play(action, listitem)
-            kodi_log(['lib.player - playing path with xbmc.Player()\n', try_decode(listitem.getPath())], 1)
+            if self.is_strm or not ADDON.getSettingBool('only_resolve_strm'):
+                resolve_to_dummy(handle, self.dummy_duration, self.dummy_delay)  # If we're calling external we need to resolve to dummy
+            xbmc.Player().play(action, listitem) if self.force_xbmcplayer else xbmc.executebuiltin(u'PlayMedia({})'.format(action))
+            kodi_log([
+                'lib.player - playing path with {}\n'.format('xbmc.Player()' if self.force_xbmcplayer else 'PlayMedia'),
+                try_decode(listitem.getPath())], 1)
             return
 
         # Otherwise we have a url we can resolve to
@@ -488,5 +499,7 @@ class Players(object):
         # If id/type not set to Player.GetItem things like Trakt don't work correctly.
         # Looking for better solution than this hack.
         if ADDON.getSettingBool('trakt_localhack') and listitem.getProperty('is_local') == 'true':
-            xbmc.Player().play(try_decode(listitem.getPath()), listitem)
-            kodi_log(['Finished executing Player().Play\n', try_decode(listitem.getPath())], 1)
+            xbmc.Player().play(try_decode(listitem.getPath()), listitem) if self.force_xbmcplayer else xbmc.executebuiltin(u'PlayMedia({})'.format(try_decode(listitem.getPath())))
+            kodi_log([
+                'Finished executing {}\n'.format('xbmc.Player()' if self.force_xbmcplayer else 'PlayMedia'),
+                try_decode(listitem.getPath())], 1)

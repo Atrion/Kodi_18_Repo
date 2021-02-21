@@ -12,7 +12,7 @@ from threading import Thread
 def get_container():
     widget_id = get_property('WidgetContainer', is_type=int)
     if widget_id:
-        return 'Container({0}).'.format(widget_id)
+        return u'Container({0}).'.format(widget_id)
     return 'Container.'
 
 
@@ -22,7 +22,7 @@ def get_container_item(container=None):
             "Window.IsVisible(movieinformation)] + "
             "!Skin.HasSetting(TMDbHelper.ForceWidgetContainer)"):
         return 'ListItem.'
-    return '{}ListItem.'.format(container or get_container())
+    return u'{}ListItem.'.format(container or get_container())
 
 
 class ListItemMonitor(CommonMonitorFunctions):
@@ -33,19 +33,20 @@ class ListItemMonitor(CommonMonitorFunctions):
         self.cur_folder = None
         self.pre_folder = None
         self.property_prefix = 'ListItem'
+        self._last_blur_fallback = False
 
     def get_container(self):
         self.container = get_container()
         self.container_item = get_container_item(self.container)
 
     def get_infolabel(self, infolabel):
-        return xbmc.getInfoLabel('{}{}'.format(self.container_item, infolabel))
+        return xbmc.getInfoLabel(u'{}{}'.format(self.container_item, infolabel))
 
     def get_position(self):
-        return xbmc.getInfoLabel('{}CurrentItem'.format(self.container))
+        return xbmc.getInfoLabel(u'{}CurrentItem'.format(self.container))
 
     def get_numitems(self):
-        return xbmc.getInfoLabel('{}NumItems'.format(self.container))
+        return xbmc.getInfoLabel(u'{}NumItems'.format(self.container))
 
     def get_imdb_id(self):
         imdb_id = self.get_infolabel('IMDBNumber') or ''
@@ -80,7 +81,7 @@ class ListItemMonitor(CommonMonitorFunctions):
         dbtype = self.get_infolabel('dbtype')
         if not dbtype and self.container == 'Container.':
             return xbmc.getInfoLabel('Container.Content()') or ''
-        return '{0}s'.format(dbtype) if dbtype else ''
+        return u'{0}s'.format(dbtype) if dbtype else ''
 
     def get_tmdb_type(self, dbtype=None):
         return convert_media_type(dbtype or self.dbtype, 'tmdb', strip_plural=True, parent_type=True)
@@ -98,7 +99,7 @@ class ListItemMonitor(CommonMonitorFunctions):
         return (
             self.get_infolabel('dbtype'),
             self.get_infolabel('dbid'),
-            self.get_infolabel('imdb'),
+            self.get_infolabel('IMDBNumber'),
             self.get_infolabel('label'),
             self.get_infolabel('year'),
             self.get_infolabel('season'),
@@ -181,6 +182,19 @@ class ListItemMonitor(CommonMonitorFunctions):
                 return artwork
         return fallback
 
+    @try_except_log('lib.monitor.listitem.blur_fallback')
+    def blur_fallback(self):
+        if self._last_blur_fallback:
+            return
+        fallback = get_property('Blur.Fallback')
+        if not fallback:
+            return
+        if xbmc.getCondVisibility("Skin.HasSetting(TMDbHelper.EnableBlur)"):
+            self.blur_img = ImageFunctions(method='blur', artwork=fallback)
+            self.blur_img.setName('blur_img')
+            self.blur_img.start()
+            self._last_blur_fallback = True
+
     @try_except_log('lib.monitor.listitem.get_listitem')
     def get_listitem(self):
         self.get_container()
@@ -211,6 +225,7 @@ class ListItemMonitor(CommonMonitorFunctions):
                 fallback=get_property('Blur.Fallback')))
             self.blur_img.setName('blur_img')
             self.blur_img.start()
+            self._last_blur_fallback = False
 
         # Desaturate Image
         if xbmc.getCondVisibility("Skin.HasSetting(TMDbHelper.EnableDesaturate)"):

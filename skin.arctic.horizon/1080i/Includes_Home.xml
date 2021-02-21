@@ -434,7 +434,6 @@
                             <ondown condition="!Skin.HasSetting(EnableHorizontalHome)">AlarmClock(refocusit,SetFocus(3992),00:00,silent)</ondown>
                             <onright condition="Skin.HasSetting(EnableHorizontalHome)">AlarmClock(refocusit,SetFocus(3992),00:00,silent)</onright>
                             <onclick>ClearProperty(WidgetMovement)</onclick>
-                            <onfocus>RunScript(plugin.video.themoviedb.helper,blur_image=$VAR[Global_Background_Image_NoFanart_Fallback])</onfocus>
                             <onclick condition="!String.IsEmpty(Window.Property(WidgetFocus)) + [!Integer.IsEqual(Container(3700).NumItems,0) | String.IsEmpty(Container(301).ListItem.Property(background))]">SetFocus(3000)</onclick>
                             <onclick condition="!String.IsEmpty(Window.Property(WidgetFocus)) + Integer.IsEqual(Container(3700).NumItems,0) + !String.IsEmpty(Container(301).ListItem.Property(background))">ClearProperty(WidgetFocus)</onclick>
                             <onclick condition="String.IsEmpty(Window.Property(WidgetFocus)) | [Integer.IsEqual(Container(3700).NumItems,0) + !String.IsEmpty(Container(301).ListItem.Property(background))]">SetProperty(301Click,1)</onclick>
@@ -555,6 +554,7 @@
 
     <include name="Home_Widget_Fullscreen_HubInfo">
         <param name="visible" default="true" />
+        <param name="group-visible" default="true" />
         <param name="clearlogo-visible" default="false" />
         <definition>
             <control type="group" id="$PARAM[group2-id]">
@@ -563,6 +563,7 @@
                 <left>view_pad</left>
                 <top>widgets_label_top</top>
                 <height>widgets_item_height</height>
+                <visible>$PARAM[group-visible]</visible>
                 <control type="grouplist">
                     <left>20</left>
                     <height>widgets_item_height</height>
@@ -604,6 +605,7 @@
                 </control>
             </control>
             <control type="grouplist" id="$PARAM[group-id]" >
+                <visible>$PARAM[group-visible]</visible>
                 <top>630</top>
                 <left>view_pad</left>
                 <right>-26</right>
@@ -991,8 +993,8 @@
             <onright>302</onright>
             <onleft>302</onleft>
             <orientation>vertical</orientation>
-            <onfocus condition="Skin.HasSetting(NoFanart)">SetProperty(TMDbHelper.Blur.SourceImage,Art(fallback),Home)</onfocus>
-            <onfocus condition="!Skin.HasSetting(NoFanart)">SetProperty(TMDbHelper.Blur.SourceImage,landscape,Home)</onfocus>
+            <onfocus condition="Skin.HasSetting(NoFanart) + !Skin.HasSetting(DisableBlur)">SetProperty(TMDbHelper.Blur.SourceImage,Art(fallback),Home)</onfocus>
+            <onfocus condition="!Skin.HasSetting(NoFanart) + !Skin.HasSetting(DisableBlur)">SetProperty(TMDbHelper.Blur.SourceImage,landscape,Home)</onfocus>
             <animation effect="fade" start="100" end="0" time="300" condition="Container(5610).IsUpdating">Conditional</animation>
             <include content="Defs_AutoScroll"><param name="condition" value="!Control.HasFocus(5610)" /></include>
             <itemlayout width="996" height="560">
@@ -1404,7 +1406,6 @@
     </include>
 
     <include name="Home_Movement_OnFocus">
-        <onfocus>RunScript(plugin.video.themoviedb.helper,blur_image=$VAR[Global_Background_Image_NoFanart_Fallback])</onfocus>
         <onfocus>ClearProperty(TMDbHelper.WidgetContainer,Home)</onfocus>
         <onback>3000</onback>
         <onfocus>ClearProperty(WidgetMovement)</onfocus>
@@ -1510,7 +1511,7 @@
                     <height>60</height>
                     <align>center</align>
                     <aligny>top</aligny>
-                    <label>$LOCALIZE[31349]...</label>
+                    <label>$VAR[Label_Splash]</label>
                     <font>font_tiny</font>
                     <textcolor>7FFFFFFF</textcolor>
                 </control>

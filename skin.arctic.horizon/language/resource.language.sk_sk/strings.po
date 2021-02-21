@@ -413,7 +413,7 @@ msgstr "Pozastaviť prehrávanie po otvorení info dialógu"
 #: /1080i/SkinSettings.xml
 msgctxt "#31080"
 msgid "Pressing \"Back\" highlights group selector"
-msgstr "Stlačenie \"Späť"\  zvýrazní výber skupiny"
+msgstr "Stlačenie \"Späť\"  zvýrazní výber skupiny"
 
 #: /1080i/script-skinshortcuts.xml
 msgctxt "#31081"

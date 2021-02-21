@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 import re
 import sys
 import xbmc
@@ -23,13 +22,13 @@ _debuglogging = ADDON.getSettingBool('debug_logging')
 
 def format_name(cache_name, *args, **kwargs):
     # Define a type whitelist to avoiding adding non-basic types like classes to cache name
-    permitted_types = [unicode, int, float, str, bool]
+    permitted_types = (unicode, int, float, str, bool, bytes)
     for arg in args:
-        if type(arg) not in permitted_types:
+        if not isinstance(arg, permitted_types):
             continue
         cache_name = u'{}/{}'.format(cache_name, arg) if cache_name else u'{}'.format(arg)
     for key, value in sorted(kwargs.items()):
-        if type(value) not in permitted_types:
+        if not isinstance(value, permitted_types):
             continue
         cache_name = u'{}&{}={}'.format(cache_name, key, value) if cache_name else u'{}={}'.format(key, value)
     return cache_name
@@ -65,6 +64,11 @@ def viewitems(obj, **kwargs):
     return func(**kwargs)
 
 
+def set_kwargattr(obj, kwargs):
+    for k, v in viewitems(kwargs):
+        setattr(obj, k, v)
+
+
 def md5hash(value):
     if sys.version_info.major != 3:
         return hashlib.md5(str(value)).hexdigest()
@@ -96,12 +100,15 @@ def kodi_log(value, level=0):
 
 def kodi_traceback(exception, log_msg=None, notification=True, log_level=1):
     if notification:
-        head = 'TheMovieDb Helper {}'.format(xbmc.getLocalizedString(257))
+        head = u'TheMovieDb Helper {}'.format(xbmc.getLocalizedString(257))
         xbmcgui.Dialog().notification(head, xbmc.getLocalizedString(2104))
-    msg = 'Error Type: {0}\nError Contents: {1!r}'
+    msg = u'Error Type: {0}\nError Contents: {1!r}'
     msg = msg.format(type(exception).__name__, exception.args)
     msg = [log_msg, '\n', msg, '\n'] if log_msg else [msg, '\n']
-    kodi_log(msg + traceback.format_tb(exception.__traceback__), log_level)
+    try:
+        kodi_log(msg + traceback.format_tb(exception.__traceback__), log_level)
+    except Exception as exc:
+        kodi_log(u'ERROR WITH TRACEBACK!\n{}\n{}'.format(exc, msg), log_level)
 
 
 def get_language():
@@ -147,7 +154,8 @@ CONVERSION_TABLE = {
         'genre': {'plural': lambda: xbmc.getLocalizedString(135), 'container': 'genres', 'dbtype': 'genre'},
         'season': {'plural': lambda: xbmc.getLocalizedString(33054), 'container': 'seasons', 'trakt': 'season', 'dbtype': 'season'},
         'episode': {'plural': lambda: xbmc.getLocalizedString(20360), 'container': 'episodes', 'trakt': 'episode', 'dbtype': 'episode'},
-        'video': {'plural': lambda: xbmc.getLocalizedString(10025), 'container': 'videos', 'dbtype': 'video'}
+        'video': {'plural': lambda: xbmc.getLocalizedString(10025), 'container': 'videos', 'dbtype': 'video'},
+        'both': {'plural': lambda: ADDON.getLocalizedString(32365), 'trakt': 'both'}
     }
 }
 

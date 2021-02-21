@@ -2,13 +2,13 @@ import xbmc
 import xbmcgui
 import xbmcvfs
 import resources.lib.kodi.rpc as rpc
-from resources.lib.addon.parser import try_int
+from resources.lib.addon.parser import try_int, try_decode
 from resources.lib.addon.plugin import ADDON
 from resources.lib.files.utils import validify_filename, get_tmdb_id_nfo
 from resources.lib.kodi.logger import _LibraryLogger
 from resources.lib.kodi.update import BASEDIR_MOVIE, BASEDIR_TV, STRM_MOVIE, STRM_EPISODE, create_file, create_nfo, get_unique_folder, get_userlist, create_playlist
 from resources.lib.kodi.cacher import _TVShowCache
-from resources.lib.addon.timedate import is_future_timestamp, get_current_date_time
+from resources.lib.addon.timedate import is_unaired_timestamp, get_current_date_time
 from resources.lib.tmdb.api import TMDb
 
 
@@ -41,18 +41,25 @@ class LibraryAdder():
         self._log = _LibraryLogger()
         self.tv = None
         self.hide_unaired = ADDON.getSettingBool('hide_unaired_episodes')
+        self.hide_nodate = ADDON.getSettingBool('nodate_is_unaired')
         # self.debug_logging = ADDON.getSettingBool('debug_logging')
         self.debug_logging = True
+        self.clean_library = False
 
     def _start(self):
         if self.p_dialog:
             self.p_dialog.create('TMDbHelper', ADDON.getLocalizedString(32166))
+        if not ADDON.getSettingBool('legacy_conversion'):
+            self.legacy_conversion()
 
     def _finish(self, update=True):
         if self.p_dialog:
             self.p_dialog.close()
         if self.debug_logging:
+            self._log._clean()  # Clean up old log files first
             self._log._out()
+        if self.clean_library:
+            xbmc.executebuiltin('CleanLibrary(video)')
         if update and self.auto_update:
             xbmc.executebuiltin('UpdateLibrary(video)')
 
@@ -60,23 +67,57 @@ class LibraryAdder():
         if self.p_dialog:
             self.p_dialog.update((((count + 1) * 100) // total), **kwargs)
 
-    def update_tvshows(self, force=False, **kwargs):
+    def get_tv_folder_nfos(self):
         nfos = []
-
-        # Get TMDb IDs from nfo files in folder
         nfos_append = nfos.append  # For speed since we can't do a list comp easily here
         for f in xbmcvfs.listdir(BASEDIR_TV)[0]:
             tmdb_id = get_tmdb_id_nfo(BASEDIR_TV, f)
             nfos_append({'tmdb_id': tmdb_id, 'folder': f}) if tmdb_id else None
+        return nfos
+
+    def _legacy_conversion(self, folder, tmdb_id):
+        # Get details
+        details = TMDb().get_request_sc('tv', tmdb_id, append_to_response='external_ids')
+        if not details or not details.get('first_air_date'):
+            return  # Skip shows without details/year
+
+        # Get new name and compare to old name
+        name = u'{} ({})'.format(details.get('name'), details['first_air_date'][:4])
+        if folder == name:
+            return  # Skip if already converted
+
+        # Convert name
+        basedir = BASEDIR_TV.replace('\\', '/')
+        old_folder = u'{}{}/'.format(basedir, validify_filename(folder))
+        new_folder = u'{}{}/'.format(basedir, validify_filename(name))
+        xbmcvfs.rename(old_folder, new_folder)
+
+    def legacy_conversion(self, confirm=True):
+        """ Converts old style tvshow folders without years so that they have years """
+        nfos = self.get_tv_folder_nfos()
 
         # Update each show in folder
         nfos_total = len(nfos)
         for x, i in enumerate(nfos):
-            self._update(x, nfos_total, message=u'{} {}...'.format(ADDON.getLocalizedString(32167), i['folder']))
+            folder, tmdb_id = try_decode(i['folder']), i['tmdb_id']
+            self._update(x, nfos_total, message=u'{} {}...'.format(ADDON.getLocalizedString(32167), folder))
+            self._legacy_conversion(folder, tmdb_id)
+
+        # Mark as complete and set to clean library
+        ADDON.setSettingBool('legacy_conversion', True)
+        self.clean_library = True
+
+    def update_tvshows(self, force=False, **kwargs):
+        nfos = self.get_tv_folder_nfos()
+
+        # Update each show in folder
+        nfos_total = len(nfos)
+        for x, i in enumerate(nfos):
+            self._update(x, nfos_total, message=u'{} {}...'.format(ADDON.getLocalizedString(32167), try_decode(i['folder'])))
             self.add_tvshow(tmdb_id=i['tmdb_id'], force=force)
 
         # Update last updated stamp
-        ADDON.setSettingString('last_autoupdate', 'Last updated {}'.format(get_current_date_time()))
+        ADDON.setSettingString('last_autoupdate', u'Last updated {}'.format(get_current_date_time()))
 
     def add_userlist(self, user_slug=None, list_slug=None, confirm=True, force=False, **kwargs):
         request = get_userlist(user_slug=user_slug, list_slug=list_slug, confirm=confirm, busy_spinner=self.p_dialog)
@@ -145,12 +186,15 @@ class LibraryAdder():
     def add_tvshow(self, tmdb_id=None, force=False, **kwargs):
         self.tv = _TVShow(tmdb_id, force)
 
+        # Return playlist rule if we don't need to check show this time
         if self._log._add('tv', tmdb_id, self.tv._cache.get_next_check()):
-            return  # Skip if timestamp for next check still in future
+            return ('title', self.tv._cache.cache_info.get('name'))
+
         if not self.tv.get_details():
             return  # Skip if no details found on TMDb
         if not self.tv.get_name():
             return  # Skip if we don't have a folder name for some reason
+
         self.tv.get_dbid()
         self.tv.make_nfo()
         self.tv.set_next()
@@ -188,7 +232,7 @@ class LibraryAdder():
             self._update(x, self.tv.e_total)
 
         # Store a season value of where we got up to
-        if self.tv.e_total > 2 and season.get('air_date') and not is_future_timestamp(season.get('air_date'), "%Y-%m-%d", 10):
+        if self.tv.e_total > 2 and season.get('air_date') and not is_unaired_timestamp(season.get('air_date'), self.hide_nodate):
             self.tv._cache.my_history['latest_season'] = try_int(number)
 
     def _add_episode(self, episode, season, folder):
@@ -201,7 +245,7 @@ class LibraryAdder():
             return
 
         # Skip future episodes
-        if self.hide_unaired and is_future_timestamp(episode.get('air_date'), "%Y-%m-%d", 10):
+        if self.hide_unaired and is_unaired_timestamp(episode.get('air_date'), self.hide_nodate):
             self.tv._cache.my_history['skipped'].append(filename)
             self._log._add('tv', self.tv.tmdb_id, 'unaired episode', season=season, episode=number, air_date=episode.get('air_date'))
             return
@@ -233,7 +277,10 @@ class _TVShow():
         return self.details
 
     def get_name(self):
-        self.name = get_unique_folder(self.details.get('name'), self.tmdb_id, BASEDIR_TV)
+        name = u'{}{}'.format(
+            self.details.get('name'),
+            u' ({})'.format(self.details['first_air_date'][:4]) if self.details.get('first_air_date') else '')
+        self.name = get_unique_folder(name, self.tmdb_id, BASEDIR_TV)
         return self.name
 
     def get_dbid(self, kodi_db=None):

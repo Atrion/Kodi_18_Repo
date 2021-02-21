@@ -1840,6 +1840,71 @@ msgctxt "#32360"
 msgid "Companies"
 msgstr ""
 
+#: /resources/lib/container/basedir.py
+msgctxt "#32361"
+msgid "Search Lists"
+msgstr ""
+
+#: /resources/lib/script/sync.py
+msgctxt "#32362"
+msgid "Do you want to add this item to the library now?"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32363"
+msgid "Delay before playing after dummy resolves (seconds)"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32364"
+msgid "Reroute PlayMedia to call xbmc.Player() directly"
+msgstr ""
+
+#: /resources/lib/addon/plugin.py
+msgctxt "#32365"
+msgid "Combined"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32366"
+msgid "Hide items without airdates"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32367"
+msgid "Local Information"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32368"
+msgid "Next Aired / Next Episodes"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32369"
+msgid "thumbs"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32370"
+msgid "landscape"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32371"
+msgid "Preferred artwork for thumbs"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32372"
+msgid "fanart"
+msgstr ""
+
+#: /resources/settings.xml
+msgctxt "#32373"
+msgid "Restrict dummy setResolvedUrl method to library strm"
+msgstr ""
+
 msgctxt "#30030"
 msgid "Hindi (India)"
 msgstr ""

@@ -1,10 +1,8 @@
 import xbmc
 import xbmcgui
 import random
-import resources.lib.addon.cache as cache
 import resources.lib.container.pages as pages
 from resources.lib.addon.window import get_property
-from resources.lib.addon.cache import use_simple_cache
 from json import loads, dumps
 from resources.lib.api.request import RequestAPI
 from resources.lib.addon.plugin import ADDON, kodi_log, viewitems
@@ -13,7 +11,9 @@ from resources.lib.trakt.items import TraktItems
 from resources.lib.trakt.decorators import is_authorized, use_activity_cache
 from resources.lib.trakt.progress import _TraktProgress
 from resources.lib.addon.parser import try_int
-# from resources.lib.addon.decorators import timer_report
+from resources.lib.addon.cache import CACHE_SHORT, CACHE_LONG, use_simple_cache
+from resources.lib.addon.timedate import set_timestamp, get_timestamp
+
 
 API_URL = 'https://api.trakt.tv/'
 CLIENT_ID = 'e6fde6173adf3c6af8fd1b0694b9b84d7c519cefc24482310e1de06c6abe5467'
@@ -40,7 +40,7 @@ def get_sort_methods():
 
 
 class _TraktLists():
-    @use_simple_cache(cache_days=cache.CACHE_SHORT)
+    @use_simple_cache(cache_days=CACHE_SHORT)
     def get_sorted_list(self, path, sort_by=None, sort_how=None, extended=None, trakt_type=None, permitted_types=None, cache_refresh=False):
         response = self.get_response(path, extended=extended, limit=4095)
         if not response:
@@ -50,7 +50,7 @@ class _TraktLists():
             sort_how=sort_how or response.headers.get('X-Sort-How'),
             permitted_types=permitted_types)
 
-    @use_simple_cache(cache_days=cache.CACHE_SHORT)
+    @use_simple_cache(cache_days=CACHE_SHORT)
     def get_simple_list(self, *args, **kwargs):
         trakt_type = kwargs.pop('trakt_type', None)
         response = self.get_response(*args, **kwargs)
@@ -59,9 +59,22 @@ class _TraktLists():
         return TraktItems(response.json(), headers=response.headers, trakt_type=trakt_type).configure_items()
 
     @is_authorized
+    def get_mixed_list(self, path, trakt_types=[], limit=20, extended=None, authorize=False):
+        """ Returns a randomised simple list which combines movies and shows
+        path uses {trakt_type} as format substitution for trakt_type in trakt_types
+        """
+        items = []
+        for trakt_type in trakt_types:
+            response = self.get_simple_list(
+                path.format(trakt_type=trakt_type), extended=extended, page=1, limit=50, trakt_type=trakt_type) or {}
+            items += response.get('items') or []
+        if items:
+            return random.sample(items, 20)
+
+    @is_authorized
     def get_basic_list(self, path, trakt_type, page=1, limit=20, params=None, sort_by=None, sort_how=None, extended=None, authorize=False, randomise=False):
         # TODO: Add argument to check whether to refresh on first page (e.g. for user lists)
-        # Also: Think about whether need to do it for standard response
+        # Also: Think about whether need to do it for standard respons
         cache_refresh = True if try_int(page, fallback=1) == 1 else False
         if randomise:
             response = self.get_simple_list(
@@ -73,15 +86,15 @@ class _TraktLists():
             response = self.get_simple_list(
                 path, extended=extended, page=page, limit=limit, trakt_type=trakt_type)
         if response:
-            if randomise and len(response['items']) > 20:
-                items = random.sample(response['items'], 20)
+            if randomise and len(response['items']) > limit:
+                items = random.sample(response['items'], limit)
                 return items
             return response['items'] + pages.get_next_page(response['headers'])
 
     def get_custom_list(self, list_slug, user_slug=None, page=1, limit=20, params=None, authorize=False, sort_by=None, sort_how=None, extended=None):
         if authorize and not self.authorize():
             return
-        path = 'users/{}/lists/{}/items'.format(user_slug or 'me', list_slug)
+        path = u'users/{}/lists/{}/items'.format(user_slug or 'me', list_slug)
         # Refresh cache on first page for user list because it might've changed
         cache_refresh = True if try_int(page, fallback=1) == 1 else False
         sorted_items = self.get_sorted_list(
@@ -97,7 +110,7 @@ class _TraktLists():
             'persons': sorted_items.get('persons', []),
             'next_page': paginated_items.next_page}
 
-    @use_activity_cache(cache_days=cache.CACHE_SHORT)
+    @use_activity_cache(cache_days=CACHE_SHORT)
     def _get_sync_list(self, sync_type, trakt_type, sort_by=None, sort_how=None):
         return TraktItems(
             items=self.get_sync(sync_type, trakt_type),
@@ -141,30 +154,30 @@ class _TraktLists():
 
             # Add library context menu
             item['context_menu'] = [(
-                xbmc.getLocalizedString(20444), 'Runscript(plugin.video.themoviedb.helper,{})'.format(
-                    'user_list={list_slug},user_slug={user_slug}'.format(**item['params'])))]
+                xbmc.getLocalizedString(20444), u'Runscript(plugin.video.themoviedb.helper,{})'.format(
+                    u'user_list={list_slug},user_slug={user_slug}'.format(**item['params'])))]
 
             # Unlike list context menu
             if path.startswith('users/likes'):
                 item['context_menu'] += [(
-                    ADDON.getLocalizedString(32319), 'Runscript(plugin.video.themoviedb.helper,{},delete)'.format(
-                        'like_list={list_slug},user_slug={user_slug}'.format(**item['params'])))]
+                    ADDON.getLocalizedString(32319), u'Runscript(plugin.video.themoviedb.helper,{},delete)'.format(
+                        u'like_list={list_slug},user_slug={user_slug}'.format(**item['params'])))]
 
             # Like list context menu
             elif path.startswith('lists/'):
                 item['context_menu'] += [(
-                    ADDON.getLocalizedString(32315), 'Runscript(plugin.video.themoviedb.helper,{})'.format(
-                        'like_list={list_slug},user_slug={user_slug}'.format(**item['params'])))]
+                    ADDON.getLocalizedString(32315), u'Runscript(plugin.video.themoviedb.helper,{})'.format(
+                        u'like_list={list_slug},user_slug={user_slug}'.format(**item['params'])))]
 
             # Owner of list so set param to allow deleting later
             else:
                 item['params']['owner'] = 'true'
                 item['context_menu'] += [(
-                    xbmc.getLocalizedString(118), 'Runscript(plugin.video.themoviedb.helper,{})'.format(
-                        'rename_list={list_slug}'.format(**item['params'])))]
+                    xbmc.getLocalizedString(118), u'Runscript(plugin.video.themoviedb.helper,{})'.format(
+                        u'rename_list={list_slug}'.format(**item['params'])))]
                 item['context_menu'] += [(
-                    xbmc.getLocalizedString(117), 'Runscript(plugin.video.themoviedb.helper,{})'.format(
-                        'delete_list={list_slug}'.format(**item['params'])))]
+                    xbmc.getLocalizedString(117), u'Runscript(plugin.video.themoviedb.helper,{})'.format(
+                        u'delete_list={list_slug}'.format(**item['params'])))]
 
             items.append(item)
         if not next_page:
@@ -207,7 +220,7 @@ class _TraktSync():
         user_slug = user_slug or 'me'
         return self.post_response(
             'users', user_slug, 'lists', list_slug, 'items/remove' if remove else 'items',
-            postdata={'{}s'.format(trakt_type): [item]})
+            postdata={u'{}s'.format(trakt_type): [item]})
 
     def sync_item(self, method, trakt_type, unique_id, id_type, season=None, episode=None):
         """
@@ -217,7 +230,7 @@ class _TraktSync():
         item = self.get_sync_item(trakt_type, unique_id, id_type, season, episode)
         if not item:
             return
-        return self.post_response('sync', method, postdata={'{}s'.format(trakt_type): [item]})
+        return self.post_response('sync', method, postdata={u'{}s'.format(trakt_type): [item]})
 
     def _get_activity_timestamp(self, activities, activity_type=None, activity_key=None):
         if not activities:
@@ -235,10 +248,10 @@ class _TraktSync():
             self.last_activities = self.get_response_json('sync/last_activities')
         return self._get_activity_timestamp(self.last_activities, activity_type=activity_type, activity_key=activity_key)
 
-    @use_activity_cache(cache_days=cache.CACHE_SHORT, pickle_object=False)
+    @use_activity_cache(cache_days=CACHE_SHORT, pickle_object=False)
     def _get_sync_response(self, path, extended=None):
         """ Quick sub-cache routine to avoid recalling full sync list if we also want to quicklist it """
-        sync_name = 'sync_response.{}.{}'.format(path, extended)
+        sync_name = u'sync_response.{}.{}'.format(path, extended)
         self.sync[sync_name] = self.sync.get(sync_name) or self.get_response_json(path, extended=extended)
         return self.sync[sync_name]
 
@@ -272,44 +285,44 @@ class _TraktSync():
                         if episode == j.get('number'):
                             return True
 
-    @use_activity_cache('movies', 'watched_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('movies', 'watched_at', CACHE_LONG, pickle_object=False)
     def get_sync_watched_movies(self, trakt_type, id_type=None):
         return self._get_sync('sync/watched/movies', 'movie', id_type=id_type)
 
     # Watched shows sync uses short cache as needed for progress checks and new episodes might air tomorrow
-    @use_activity_cache('episodes', 'watched_at', cache.CACHE_SHORT, pickle_object=False)
+    @use_activity_cache('episodes', 'watched_at', CACHE_SHORT, pickle_object=False)
     def get_sync_watched_shows(self, trakt_type, id_type=None):
         return self._get_sync('sync/watched/shows', 'show', id_type=id_type, extended='full')
 
-    @use_activity_cache('movies', 'collected_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('movies', 'collected_at', CACHE_LONG, pickle_object=False)
     def get_sync_collection_movies(self, trakt_type, id_type=None):
         return self._get_sync('sync/collection/movies', 'movie', id_type=id_type)
 
-    @use_activity_cache('episodes', 'collected_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('episodes', 'collected_at', CACHE_LONG, pickle_object=False)
     def get_sync_collection_shows(self, trakt_type, id_type=None):
         return self._get_sync('sync/collection/shows', trakt_type, id_type=id_type)
 
-    @use_activity_cache('movies', 'watched_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('movies', 'watched_at', CACHE_LONG, pickle_object=False)
     def get_sync_playback_movies(self, trakt_type, id_type=None):
         return self._get_sync('sync/playback/movies', 'movie', id_type=id_type)
 
-    @use_activity_cache('episodes', 'watched_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('episodes', 'watched_at', CACHE_LONG, pickle_object=False)
     def get_sync_playback_shows(self, trakt_type, id_type=None):
         return self._get_sync('sync/playback/episodes', trakt_type, id_type=id_type)
 
-    @use_activity_cache('movies', 'watchlisted_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('movies', 'watchlisted_at', CACHE_LONG, pickle_object=False)
     def get_sync_watchlist_movies(self, trakt_type, id_type=None):
         return self._get_sync('sync/watchlist/movies', 'movie', id_type=id_type)
 
-    @use_activity_cache('shows', 'watchlisted_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('shows', 'watchlisted_at', CACHE_LONG, pickle_object=False)
     def get_sync_watchlist_shows(self, trakt_type, id_type=None):
         return self._get_sync('sync/watchlist/shows', 'show', id_type=id_type)
 
-    @use_activity_cache('movies', 'recommendations_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('movies', 'recommendations_at', CACHE_LONG, pickle_object=False)
     def get_sync_recommendations_movies(self, trakt_type, id_type=None):
         return self._get_sync('sync/recommendations/movies', 'movie', id_type=id_type)
 
-    @use_activity_cache('shows', 'recommendations_at', cache.CACHE_LONG, pickle_object=False)
+    @use_activity_cache('shows', 'recommendations_at', CACHE_LONG, pickle_object=False)
     def get_sync_recommendations_shows(self, trakt_type, id_type=None):
         return self._get_sync('sync/recommendations/shows', 'show', id_type=id_type)
 
@@ -326,14 +339,14 @@ class _TraktSync():
             func = self.get_sync_recommendations_movies if trakt_type == 'movie' else self.get_sync_recommendations_shows
         else:
             return
-        sync_name = '{}.{}.{}'.format(sync_type, trakt_type, id_type)
+        sync_name = u'{}.{}.{}'.format(sync_type, trakt_type, id_type)
         self.sync[sync_name] = self.sync.get(sync_name) or func(trakt_type, id_type)
         return self.sync[sync_name] or {}
 
 
 class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
     def __init__(self, force=False):
-        super(TraktAPI, self).__init__(req_api_url=API_URL, req_api_name='Trakt')
+        super(TraktAPI, self).__init__(req_api_url=API_URL, req_api_name='TraktAPI')
         self.authorization = ''
         self.attempted_login = False
         self.dialog_noapikey_header = u'{0} {1} {2}'.format(ADDON.getLocalizedString(32007), self.req_api_name, ADDON.getLocalizedString(32011))
@@ -355,7 +368,7 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
         token = self.get_stored_token()
         if token.get('access_token'):
             self.authorization = token
-            self.headers['Authorization'] = 'Bearer {0}'.format(self.authorization.get('access_token'))
+            self.headers['Authorization'] = u'Bearer {0}'.format(self.authorization.get('access_token'))
 
         # No saved credentials and user trying to use a feature that requires authorization so ask them to login
         elif login:
@@ -369,17 +382,18 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
 
         # First time authorization in this session so let's confirm
         if self.authorization and get_property('TraktIsAuth') != 'True':
-            # Check if we can get a response from user account
-            kodi_log('Checking Trakt authorization', 1)
-            response = self.get_simple_api_request('https://api.trakt.tv/sync/last_activities', headers=self.headers)
-            # 401 is unauthorized error code so let's try refreshing the token
-            if not response or response.status_code == 401:
-                kodi_log('Trakt unauthorized!', 1)
-                self.authorization = self.refresh_token()
-            # Authorization confirmed so let's set a window property for future reference in this session
-            if self.authorization:
-                kodi_log('Trakt user account authorized', 1)
-                get_property('TraktIsAuth', 'True')
+            if not get_timestamp(get_property('TraktRefreshTimeStamp', is_type=float) or 0):
+                # Check if we can get a response from user account
+                kodi_log('Checking Trakt authorization', 2)
+                response = self.get_simple_api_request('https://api.trakt.tv/sync/last_activities', headers=self.headers)
+                # 401 is unauthorized error code so let's try refreshing the token
+                if not response or response.status_code == 401:
+                    kodi_log('Trakt unauthorized!', 2)
+                    self.authorization = self.refresh_token()
+                # Authorization confirmed so let's set a window property for future reference in this session
+                if self.authorization:
+                    kodi_log('Trakt user account authorized', 1)
+                    get_property('TraktIsAuth', 'True')
 
         return self.authorization
 
@@ -420,12 +434,21 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
         self.interval = self.code.get('interval', 5)
         self.expires_in = self.code.get('expires_in', 0)
         self.auth_dialog = xbmcgui.DialogProgress()
-        self.auth_dialog.create(ADDON.getLocalizedString(32097), '{}\n{}: [B]{}[/B]'.format(
+        self.auth_dialog.create(ADDON.getLocalizedString(32097), u'{}\n{}: [B]{}[/B]'.format(
             ADDON.getLocalizedString(32096), ADDON.getLocalizedString(32095), self.code.get('user_code')))
         self.poller()
 
     def refresh_token(self):
-        kodi_log('Attempting to refresh Trakt token', 1)
+        # Check we haven't attempted too many refresh attempts
+        refresh_attempts = try_int(get_property('TraktRefreshAttempts')) + 1
+        if refresh_attempts > 5:
+            kodi_log('Trakt Unauthorised!\nExceeded refresh_token attempt limit\nSuppressing retries for 10 minutes', 1)
+            get_property('TraktRefreshTimeStamp', set_timestamp(600))
+            get_property('TraktRefreshAttempts', 0)  # Reset refresh attempts
+            return
+        get_property('TraktRefreshAttempts', refresh_attempts)
+
+        kodi_log('Attempting to refresh Trakt token', 2)
         if not self.authorization or not self.authorization.get('refresh_token'):
             kodi_log('Trakt refresh token not found!', 1)
             return
@@ -437,7 +460,7 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
             'grant_type': 'refresh_token'}
         self.authorization = self.get_api_request_json('https://api.trakt.tv/oauth/token', postdata=postdata)
         if not self.authorization or not self.authorization.get('access_token'):
-            kodi_log('Failed to refresh Trakt token!', 1)
+            kodi_log('Failed to refresh Trakt token!', 2)
             return
         self.on_authenticated(auth_dialog=False)
         kodi_log('Trakt token refreshed', 1)
@@ -473,7 +496,7 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
         """Triggered when device authentication has been completed"""
         kodi_log(u'Trakt authenticated successfully!', 1)
         ADDON.setSettingString('trakt_token', dumps(self.authorization))
-        self.headers['Authorization'] = 'Bearer {0}'.format(self.authorization.get('access_token'))
+        self.headers['Authorization'] = u'Bearer {0}'.format(self.authorization.get('access_token'))
         if auth_dialog:
             self.auth_dialog.close()
 
@@ -519,7 +542,7 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
         for i in response:
             if i.get('type') != trakt_type:
                 continue
-            if '{}'.format(i.get(trakt_type, {}).get('ids', {}).get(id_type)) != '{}'.format(unique_id):
+            if u'{}'.format(i.get(trakt_type, {}).get('ids', {}).get(id_type)) != u'{}'.format(unique_id):
                 continue
             if not output_type:
                 return i.get(trakt_type, {}).get('ids', {})
@@ -530,37 +553,37 @@ class TraktAPI(RequestAPI, _TraktSync, _TraktLists, _TraktProgress):
         trakt_type: movie, show, episode, person, list
         output_type: trakt, slug, imdb, tmdb, tvdb
         """
-        return cache.use_cache(
+        return self._cache.use_cache(
             self._get_id, unique_id, id_type, trakt_type=trakt_type, output_type=output_type,
-            cache_name='trakt_get_id.{}.{}.{}.{}'.format(id_type, unique_id, trakt_type, output_type),
-            cache_days=cache.CACHE_LONG)
+            cache_name=u'trakt_get_id.{}.{}.{}.{}'.format(id_type, unique_id, trakt_type, output_type),
+            cache_days=CACHE_LONG)
 
     def get_details(self, trakt_type, id_num, season=None, episode=None, extended='full'):
         if not season or not episode:
             return self.get_request_lc(trakt_type + 's', id_num, extended=extended)
         return self.get_request_lc(trakt_type + 's', id_num, 'seasons', season, 'episodes', episode, extended=extended)
 
-    @use_simple_cache(cache_days=cache.CACHE_SHORT)
+    @use_simple_cache(cache_days=CACHE_SHORT)
     def get_imdb_top250(self, id_type=None):
         path = 'users/justin/lists/imdb-top-rated-movies/items'
         response = self.get_response(path, limit=4095)
         sorted_items = TraktItems(response.json() if response else []).sort_items('rank', 'asc') or []
         return [i['movie']['ids'][id_type] for i in sorted_items]
 
-    @use_simple_cache(cache_days=cache.CACHE_SHORT)
+    @use_simple_cache(cache_days=CACHE_SHORT)
     def get_ratings(self, trakt_type, imdb_id=None, trakt_id=None, slug_id=None, season=None, episode=None):
         slug = slug_id or trakt_id or imdb_id
         if not slug:
             return
         if episode and season:
-            url = 'shows/{}/seasons/{}/episodes/{}/ratings'.format(slug, season, episode)
+            url = u'shows/{}/seasons/{}/episodes/{}/ratings'.format(slug, season, episode)
         elif season:
-            url = 'shows/{}/seasons/{}/ratings'.format(slug, season)
+            url = u'shows/{}/seasons/{}/ratings'.format(slug, season)
         else:
-            url = '{}s/{}/ratings'.format(trakt_type, slug)
+            url = u'{}s/{}/ratings'.format(trakt_type, slug)
         response = self.get_response_json(url)
         if not response:
             return
         return {
-            'trakt_rating': '{:0.1f}'.format(response.get('rating') or 0.0),
-            'trakt_votes': '{:0.1f}'.format(response.get('votes') or 0.0)}
+            'trakt_rating': u'{:0.1f}'.format(response.get('rating') or 0.0),
+            'trakt_votes': u'{:0.1f}'.format(response.get('votes') or 0.0)}

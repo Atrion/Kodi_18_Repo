@@ -967,8 +967,8 @@ class sources:
         if provider == 'true':
             self.sources = sorted(self.sources, key=lambda k: k['provider'])
 
-        #if not HEVC == 'true':
-            #self.sources = [i for i in self.sources if not any(value in str(i['url']).lower() for value in ['hevc', 'h265', 'h.265', 'x265', 'x.265'])]
+        if not HEVC == 'true':
+            self.sources = [i for i in self.sources if not any(value in (i['url']).lower() for value in ['hevc', 'h265', 'h.265', 'x265', 'x.265'])]
 
         local = [i for i in self.sources if 'local' in i and i['local'] is True]
         for i in local: i.update({'language': self._getPrimaryLang() or 'en'})

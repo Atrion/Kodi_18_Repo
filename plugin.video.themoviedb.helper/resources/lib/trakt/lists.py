@@ -1,9 +1,10 @@
 import random
+import xbmcgui
 from resources.lib.kodi.rpc import get_kodi_library
-from resources.lib.addon.plugin import convert_type
+from resources.lib.addon.plugin import convert_type, PLUGINPATH
 from resources.lib.addon.constants import TRAKT_BASIC_LISTS, TRAKT_SYNC_LISTS, TRAKT_LIST_OF_LISTS
 from resources.lib.addon.plugin import ADDON, viewitems
-from resources.lib.addon.parser import try_int
+from resources.lib.addon.parser import try_int, encode_url
 from resources.lib.api.mapping import get_empty_item
 from resources.lib.addon.timedate import get_calendar_name
 from resources.lib.trakt.api import get_sort_methods
@@ -11,6 +12,8 @@ from resources.lib.trakt.api import get_sort_methods
 
 class TraktLists():
     def list_trakt(self, info, tmdb_type, page=None, randomise=False, **kwargs):
+        if tmdb_type == 'both':
+            return self.list_mixed(info)
         info_model = TRAKT_BASIC_LISTS.get(info)
         info_tmdb_type = info_model.get('tmdb_type') or tmdb_type
         trakt_type = convert_type(tmdb_type, 'trakt')
@@ -28,6 +31,18 @@ class TraktLists():
         self.kodi_db = self.get_kodi_database(info_tmdb_type)
         self.library = convert_type(info_tmdb_type, 'library')
         self.container_content = convert_type(info_tmdb_type, 'container')
+        return items
+
+    def list_mixed(self, info, **kwargs):
+        info_model = TRAKT_BASIC_LISTS.get(info)
+        items = self.trakt_api.get_mixed_list(
+            path=info_model.get('path', ''),
+            trakt_types=['movie', 'show'],
+            authorize=info_model.get('authorize', False),
+            extended=info_model.get('extended', None))
+        self.tmdb_cache_only = False
+        self.library = 'video'
+        self.container_content = 'movies'
         return items
 
     def list_sync(self, info, tmdb_type, page=None, **kwargs):
@@ -52,6 +67,16 @@ class TraktLists():
             path=info_model.get('path', '').format(**kwargs),
             page=page,
             authorize=info_model.get('authorize', False))
+        self.library = 'video'
+        return items
+
+    def list_lists_search(self, query=None, **kwargs):
+        if not query:
+            kwargs['query'] = query = xbmcgui.Dialog().input(ADDON.getLocalizedString(32044))
+            if not kwargs['query']:
+                return
+            self.container_update = u'{},replace'.format(encode_url(PLUGINPATH, **kwargs))
+        items = self.trakt_api.get_list_of_lists(path=u'search/list?query={}'.format(query))
         self.library = 'video'
         return items
 
@@ -107,6 +132,10 @@ class TraktLists():
         if not watched_items:
             return
         item = watched_items[random.randint(0, len(watched_items) - 1)]
+        self.parent_params = {
+            'info': 'recommendations',
+            'tmdb_type': item.get('params', {}).get('tmdb_type'),
+            'tmdb_id': item.get('params', {}).get('tmdb_id')}
         self.plugin_category = u'{} {}'.format(ADDON.getLocalizedString(32288), item.get('label'))
         return self.list_tmdb(
             info='recommendations',
@@ -140,6 +169,7 @@ class TraktLists():
         # self.kodi_db = self.get_kodi_database(tmdb_type)
         self.library = 'video'
         self.container_content = 'episodes'
+        self.thumb_override = ADDON.getSettingInt('calendar_art')
         return items
 
     def list_trakt_calendar(self, info, startdate, days, page=None, library=False, **kwargs):
@@ -155,6 +185,7 @@ class TraktLists():
         self.library = 'video'
         self.container_content = 'episodes'
         self.plugin_category = get_calendar_name(startdate=try_int(startdate), days=try_int(days))
+        self.thumb_override = ADDON.getSettingInt('calendar_art')
         return items
 
     def list_upnext(self, info, tmdb_type, tmdb_id, page=None, **kwargs):

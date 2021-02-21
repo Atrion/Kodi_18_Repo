@@ -3,7 +3,7 @@ import xbmcgui
 from resources.lib.addon.constants import ACCEPTED_MEDIATYPES
 from resources.lib.addon.plugin import ADDON, ADDONPATH, PLUGINPATH, kodi_log, viewitems, convert_media_type
 from resources.lib.addon.parser import try_int, encode_url
-from resources.lib.addon.timedate import is_future_timestamp
+from resources.lib.addon.timedate import is_unaired_timestamp
 from resources.lib.addon.setutils import merge_two_dicts
 from resources.lib.container.context import ContextMenu
 # from resources.lib.addon.decorators import timer_report
@@ -56,8 +56,8 @@ class _ListItem(object):
         if not next_page:
             return
         self.label = xbmc.getLocalizedString(33078)
-        self.art['thumb'] = '{}/resources/icons/tmdb/nextpage.png'.format(ADDONPATH)
-        self.art['landscape'] = '{}/resources/icons/tmdb/nextpage_wide.png'.format(ADDONPATH)
+        self.art['thumb'] = u'{}/resources/icons/tmdb/nextpage.png'.format(ADDONPATH)
+        self.art['landscape'] = u'{}/resources/icons/tmdb/nextpage_wide.png'.format(ADDONPATH)
         self.infoproperties['specialsort'] = 'bottom'
         self.params = self.parent_params.copy()
         self.params['page'] = next_page
@@ -67,10 +67,25 @@ class _ListItem(object):
 
     def set_art_fallbacks(self):
         if not self.art.get('thumb'):
-            self.art['thumb'] = '{}/resources/poster.png'.format(ADDONPATH)
+            self.art['thumb'] = u'{}/resources/poster.png'.format(ADDONPATH)
         if not self.art.get('fanart'):
-            self.art['fanart'] = '{}/fanart.jpg'.format(ADDONPATH)
+            self.art['fanart'] = u'{}/fanart.jpg'.format(ADDONPATH)
         return self.art
+
+    def set_thumb_to_art(self, prefer_landscape=False):
+        if prefer_landscape:
+            if self.art.get('landscape'):
+                self.art['thumb'] = self.art['landscape']
+                return self.art['landscape']
+            if self.art.get('tvshow.landscape'):
+                self.art['thumb'] = self.art['tvshow.landscape']
+                return self.art['tvshow.landscape']
+        if self.art.get('fanart'):
+            self.art['thumb'] = self.art['fanart']
+            return self.art['fanart']
+        if self.art.get('tvshow.fanart'):
+            self.art['thumb'] = self.art['tvshow.fanart']
+            return self.art['tvshow.fanart']
 
     def get_trakt_type(self):
         return convert_media_type(self.infolabels.get('mediatype'), 'trakt')
@@ -87,7 +102,7 @@ class _ListItem(object):
     def get_tmdb_id(self):
         return self.unique_ids.get('tmdb')
 
-    def is_unaired(self, format_label=None, check_hide_settings=True):
+    def is_unaired(self, format_label=None, check_hide_settings=True, no_date=True):
         return
 
     def set_context_menu(self):
@@ -134,13 +149,13 @@ class _ListItem(object):
         for k, v in viewitems(self.unique_ids):
             if not v:
                 continue
-            self.infoproperties['{}_id'.format(k)] = v
+            self.infoproperties[u'{}_id'.format(k)] = v
 
     def set_params_to_info(self, widget=None):
         for k, v in viewitems(self.params):
             if not k or not v:
                 continue
-            self.infoproperties['item.{}'.format(k)] = v
+            self.infoproperties[u'item.{}'.format(k)] = v
         if self.params.get('tmdb_type'):
             self.infoproperties['item.type'] = self.params['tmdb_type']
         if widget:
@@ -211,9 +226,9 @@ class _Collection(_ListItem):
 
 
 class _Video(_ListItem):
-    def is_unaired(self, format_label=u'[COLOR=ffcc0000][I]{}[/I][/COLOR]', check_hide_settings=True):
+    def is_unaired(self, format_label=u'[COLOR=ffcc0000][I]{}[/I][/COLOR]', check_hide_settings=True, no_date=True):
         try:
-            if not is_future_timestamp(self.infolabels.get('premiered'), "%Y-%m-%d", 10):
+            if not is_unaired_timestamp(self.infolabels.get('premiered'), no_date):
                 return
             if format_label:
                 self.label = format_label.format(self.label)
@@ -226,11 +241,12 @@ class _Video(_ListItem):
     def _set_params_reroute_default(self):
         if not ADDON.getSettingInt('default_select'):
             self.params['info'] = 'play'
-            self.infoproperties['isPlayable'] = 'true'
+            if not ADDON.getSettingBool('only_resolve_strm'):
+                self.infoproperties['isPlayable'] = 'true'
         else:
             self.params['info'] = 'related'
         self.is_folder = False
-        self.infoproperties['tmdbhelper.context.playusing'] = '{}&ignore_default=true'.format(self.get_url())
+        self.infoproperties['tmdbhelper.context.playusing'] = u'{}&ignore_default=true'.format(self.get_url())
 
     def _set_params_reroute_details(self, flatten_seasons):
         self._set_params_reroute_default()
@@ -313,7 +329,7 @@ class _Episode(_Tvshow):
         if (self.parent_params.get('info') == 'library_nextaired'
                 and ADDON.getSettingBool('nextaired_linklibrary')
                 and self.infoproperties.get('tvshow.dbid')):
-            self.path = 'videodb://tvshows/titles/{}/'.format(self.infoproperties['tvshow.dbid'])
+            self.path = u'videodb://tvshows/titles/{}/'.format(self.infoproperties['tvshow.dbid'])
             self.params = {}
             self.is_folder = True
             return
