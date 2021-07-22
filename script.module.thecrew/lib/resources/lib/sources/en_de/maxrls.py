@@ -15,20 +15,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import re
+import re,urllib,urlparse
 
-try: from urlparse import parse_qs, urljoin
-except ImportError: from urllib.parse import parse_qs, urljoin
-try: from urllib import urlencode, quote_plus
-except ImportError: from urllib.parse import urlencode, quote_plus
-
+from resources.lib.modules import cfscrape
 from resources.lib.modules import client
 from resources.lib.modules import debrid
 from resources.lib.modules import source_utils
-from resources.lib.modules import utils
 
 
-class source:
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
@@ -39,7 +34,7 @@ class source:
     def movie(self, imdb, title, localtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'title': title, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -47,7 +42,7 @@ class source:
     def tvshow(self, imdb, tvdb, tvshowtitle, localtvshowtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'tvdb': tvdb, 'tvshowtitle': tvshowtitle, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -57,10 +52,10 @@ class source:
             if url is None:
                 return
 
-            url = parse_qs(url)
+            url = urlparse.parse_qs(url)
             url = dict([(i, url[i][0]) if url[i] else (i, '') for i in url])
             url['title'], url['premiered'], url['season'], url['episode'] = title, premiered, season, episode
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -68,16 +63,15 @@ class source:
     def sources(self, url, hostDict, hostprDict):
         try:
             sources = []
+            scraper = cfscrape.create_scraper()
 
             if url is None:
                 return sources
 
             if debrid.status() is False:
-                return sources
+                raise Exception()
 
-            hostDict = hostprDict + hostDict
-
-            data = parse_qs(url)
+            data = urlparse.parse_qs(url)
             data = dict([(i, data[i][0]) if data[i] else (i, '') for i in data])
             title = data['tvshowtitle'] if 'tvshowtitle' in data else data['title']
             hdlr = 'S%02dE%02d' % (int(data['season']), int(data['episode'])) if 'tvshowtitle' in data else data['year']
@@ -86,21 +80,21 @@ class source:
                 data['tvshowtitle'], int(data['season']), int(data['episode'])) \
                 if 'tvshowtitle' in data else '%s %s' % (data['title'], data['year'])
 
-            url = self.search_link % quote_plus(query)
-            url = urljoin(self.base_link, url).replace('%3A+', '+')
+            url = self.search_link % urllib.quote_plus(query)
+            url = urlparse.urljoin(self.base_link, url).replace('%3A+', '+')
 
-            r = client.request(url)
+            r = scraper.get(url).content
             if r is None and 'tvshowtitle' in data:
                 season = re.search('S(.*?)E', hdlr)
                 season = season.group(1)
                 url = title
 
-                r = client.request(url)
+                r = scraper.get(url).content
 
-            for loopCount in list(range(0, 2)):
+            for loopCount in range(0, 2):
                 if loopCount == 1 or (r is None and 'tvshowtitle' in data):
 
-                    r = client.request(url)
+                    r = scraper.get(url).content
 
                 posts = client.parseDOM(r, "h2", attrs={"class": "postTitle"})
                 hostDict = hostprDict + hostDict
@@ -120,7 +114,7 @@ class source:
             for item in items:
                 try:
                     i = str(item)
-                    r = client.request(i)
+                    r = scraper.get(i).content
                     u = client.parseDOM(r, "div", attrs={"class": "postContent"})
                     for t in u:
                         r = client.parseDOM(t, 'a', ret='href')

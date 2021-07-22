@@ -15,12 +15,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import re
+import re,urllib,urlparse
 from resources.lib.modules import cleantitle,client,source_utils,proxy,cfscrape
 
 
-
-class source:
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']

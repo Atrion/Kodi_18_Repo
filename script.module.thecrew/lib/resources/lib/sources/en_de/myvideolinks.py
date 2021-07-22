@@ -32,8 +32,8 @@ class source:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
-        self.domains = ['iwantmyshow.tk', 'myvideolinks.net', 'go.myvideolinks.net']
-        self.base_link = 'http://see.home.kg'
+        self.domains = ['iwantmyshow.tk', 'myvideolinks.net', 'go.myvideolinks.net', 'to.myvideolinks.net/', 'see.home.kg']
+        self.base_link = 'http://to.myvideolinks.net/'
         self.search_link = '/?s=%s'
 
     def movie(self, imdb, title, localtitle, aliases, year):

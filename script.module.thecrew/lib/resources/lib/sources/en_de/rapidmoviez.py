@@ -15,14 +15,7 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import re,time
-
-try: from urlparse import parse_qs, urljoin
-except ImportError: from urllib.parse import parse_qs, urljoin
-try: from urllib import urlencode, quote_plus
-except ImportError: from urllib.parse import urlencode, quote_plus
-
-from six import ensure_text
+import re,urllib,urlparse,time
 
 from resources.lib.modules import cleantitle
 from resources.lib.modules import dom_parser2
@@ -33,9 +26,7 @@ from resources.lib.modules import workers
 from resources.lib.modules import cfscrape
 
 
-
-
-class source:
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
@@ -47,42 +38,41 @@ class source:
     def movie(self, imdb, title, localtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'title': title, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
-        except:
+        except BaseException:
             return
             
     def tvshow(self, imdb, tvdb, tvshowtitle, localtvshowtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'tvdb': tvdb, 'tvshowtitle': tvshowtitle, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
-        except:
+        except Exception:
             return
 
     def episode(self, url, imdb, tvdb, title, premiered, season, episode):
         try:
             if url is None: return
 
-            url = parse_qs(url)
+            url = urlparse.parse_qs(url)
             url = dict([(i, url[i][0]) if url[i] else (i, '') for i in url])
             url['title'], url['premiered'], url['season'], url['episode'] = title, premiered, season, episode
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
 
     def search(self, title, year):
         try:
-            url = urljoin(self.base_link, self.search_link % (quote_plus(title)))
+            url = urlparse.urljoin(self.base_link, self.search_link % (urllib.quote_plus(title)))
             headers = {'User-Agent': client.agent()}
             r = self.scraper.get(url, headers=headers).content
-            r = ensure_text(r, errors='replace')
             r = dom_parser2.parse_dom(r, 'div', {'class': 'list_items'})[0]
             r = dom_parser2.parse_dom(r.content, 'li')
             r = [(dom_parser2.parse_dom(i, 'a', {'class': 'title'})) for i in r]
             r = [(i[0].attrs['href'], i[0].content) for i in r]
-            r = [(urljoin(self.base_link, i[0])) for i in r if cleantitle.get(title) in cleantitle.get(i[1]) and year in i[1]]
+            r = [(urlparse.urljoin(self.base_link, i[0])) for i in r if cleantitle.get(title) in cleantitle.get(i[1]) and year in i[1]]
             if r: return r[0]
             else: return
         except:
@@ -97,13 +87,12 @@ class source:
                 return self.sources
 
             if debrid.status() is False:
-                return self.sources
+                raise Exception()
 
-            data = parse_qs(url)
+            data = urlparse.parse_qs(url)
             data = dict([(i, data[i][0]) if data[i] else (i, '') for i in data])
                          
             title = data['tvshowtitle'] if 'tvshowtitle' in data else data['title']
-            title = cleantitle.get_query(title)
 
             hdlr = data['year']
             hdlr2 = 'S%02dE%02d' % (int(data['season']), int(data['episode'])) if 'tvshowtitle' in data else ''
@@ -112,13 +101,12 @@ class source:
             url = self.search(title, hdlr)
             headers = {'User-Agent': client.agent()}
             r = self.scraper.get(url, headers=headers).content
-            r = ensure_text(r, errors='replace')
             if hdlr2 == '':
                 r = dom_parser2.parse_dom(r, 'ul', {'id': 'releases'})[0]
             else:
                 r = dom_parser2.parse_dom(r, 'ul', {'id': 'episodes'})[0]
             r = dom_parser2.parse_dom(r.content, 'a', req=['href'])
-            r = [(i.content, urljoin(self.base_link, i.attrs['href'])) for i in r if i and i.content != 'Watch']
+            r = [(i.content, urlparse.urljoin(self.base_link, i.attrs['href'])) for i in r if i and i.content != 'Watch']
             if hdlr2 != '':
                 r = [(i[0], i[1]) for i in r if hdlr2.lower() in i[0].lower()]
             
@@ -141,16 +129,13 @@ class source:
         try:
             headers = {'User-Agent': client.agent()}
             r = self.scraper.get(url, headers=headers).content
-            r = ensure_text(r, errors='replace')
             name = client.replaceHTMLCodes(name)
-            try: _name = name.lower().replace('rr', '').replace('nf', '').replace('ul', '').replace('cu', '')
-            except: _name = name
             l = dom_parser2.parse_dom(r, 'pre', {'class': 'links'})
             s = ''
             for i in l:
                 s += i.content
             urls = re.findall(r'''((?:http|ftp|https)://[\w_-]+(?:(?:\.[\w_-]+)+)[\w.,@?^=%&:/~+#-]*[\w@?^=%&/~+#-])''', i.content, flags=re.MULTILINE|re.DOTALL)
-            urls = [i for i in urls if not i.endswith(('.rar', '.zip', '.iso', '.idx', '.sub', '.srt'))]
+            urls = [i for i in urls if '.rar' not in i or '.zip' not in i or '.iso' not in i or '.idx' not in i or '.sub' not in i]
             for url in urls:
                 if url in str(self.sources):
                     continue
@@ -159,16 +144,18 @@ class source:
                 if not valid:
                     continue
                 host = client.replaceHTMLCodes(host)
-                #host = host.encode('utf-8')
+                host = host.encode('utf-8')
                 quality, info = source_utils.get_release_quality(name, url)
                 try:
                     size = re.findall('((?:\d+\.\d+|\d+\,\d+|\d+)\s*(?:GiB|MiB|GB|MB))', name)[0]
-                    dsize, isize = source_utils._size(size)
+                    div = 1 if size.endswith(('GB', 'GiB')) else 1024
+                    size = float(re.sub('[^0-9|/.|/,]', '', size)) / div
+                    size = '%.2f GB' % size
+                    info.append(size)
                 except BaseException:
-                    dsize, isize = 0.0, ''
-                info.insert(0, isize)
+                    pass
                 info = ' | '.join(info)
-                self.sources.append({'source': host, 'quality': quality, 'language': 'en', 'url': url, 'info': info, 'direct': False, 'debridonly': True, 'size': dsize, 'name': _name})
+                self.sources.append({'source': host, 'quality': quality, 'language': 'en', 'url': url, 'info': info, 'direct': False, 'debridonly': True})
         except:
             pass
 

@@ -9,11 +9,11 @@
 
 import os, sys
 if sys.version_info.major == 3:
-    from .utils import log_msg, extend_dict, ADDON_ID, strip_newlines, download_artwork
+    from .utils import log_msg, extend_dict, ADDON_ID, strip_newlines, download_artwork, try_decode, manual_set_artwork
     from .mbrainz import MusicBrainz
     from urllib.parse import quote_plus
 else:
-    from utils import log_msg, extend_dict, ADDON_ID, strip_newlines, download_artwork
+    from utils import log_msg, extend_dict, ADDON_ID, strip_newlines, download_artwork, try_decode, manual_set_artwork
     from mbrainz import MusicBrainz
     from urllib import quote_plus
 import xbmc
@@ -60,7 +60,7 @@ class MusicArtwork(object):
 
         # combine artist plot and album plot as extended plot
         if artist_details.get("plot") and album_details.get("plot"):
-            details["extendedplot"] = "%s  --  %s" % (album_details["plot"], artist_details["plot"])
+            details["extendedplot"] = "%s  --  %s" % try_decode((album_details["plot"], artist_details["plot"]))
         else:
             details["extendedplot"] = details.get("plot", "")
 
@@ -180,7 +180,7 @@ class MusicArtwork(object):
                 else:
                     custom_path = self._mutils.addon.getSetting("music_art_custom_path").decode("utf-8")
                 local_path_custom = self.get_customfolder_path(custom_path, artist)
-                log_msg("custom path on disk for artist: %s --> %s" % (artist, local_path_custom))
+                #log_msg("custom path on disk for artist: %s --> %s" % (artist, local_path_custom))
                 details["art"] = extend_dict(details["art"], self.lookup_artistart_in_folder(local_path_custom))
                 details["customartpath"] = local_path_custom
             # lookup online metadata
@@ -281,13 +281,15 @@ class MusicArtwork(object):
                 mb_albumid = details.get("musicbrainzalbumid")
                 if not mb_albumid:
                     mb_albumid = self.get_mb_album_id(artist, album, track)
+                    if self._mutils.addon.getSetting("music_art_scraper_adb") == "true":
+                        adb_album = self.audiodb.get_album_id(artist, album, track)
                 if mb_albumid:
                     # get artwork from fanarttv
                     if self._mutils.addon.getSetting("music_art_scraper_fatv") == "true":
                         details["art"] = extend_dict(details["art"], self._mutils.fanarttv.album(mb_albumid))
                     # get metadata from theaudiodb
                     if self._mutils.addon.getSetting("music_art_scraper_adb") == "true":
-                        details = extend_dict(details, self.audiodb.album_info(album))
+                        details = extend_dict(details, self.audiodb.album_info(artist, adb_album))
                     # get metadata from lastfm
                     if self._mutils.addon.getSetting("music_art_scraper_lfm") == "true":
                         details = extend_dict(details, self.lastfm.album_info(mb_albumid))
@@ -352,18 +354,18 @@ class MusicArtwork(object):
                 bullet = "•"
             else:
                 bullet = "•".decode("utf-8")
-            details["albums.formatted"] = u""
-            details["tracks.formatted"] = u""
-            details["tracks.formatted2"] = u""
-            details["albumsartist.formatted"] = u""
-            details["albumscompilations.formatted"] = u""
+            details["albums.formatted"] = ""
+            details["tracks.formatted"] = ""
+            details["tracks.formatted2"] = ""
+            details["albumsartist.formatted"] = ""
+            details["albumscompilations.formatted"] = ""
             # enumerate albums for this artist
             for artist_album in artist_albums:
                 details["albums"].append(artist_album["label"])
-                details["albums.formatted"] += u"%s %s [CR]" % (bullet, artist_album["label"])
+                details["albums.formatted"] += "%s %s [CR]" % (bullet, artist_album["label"])
                 if artist in artist_album["displayartist"]:
                     details["albumsartist"].append(artist_album["label"])
-                    details["albumsartist.formatted"] += u"%s %s [CR]" % (bullet, artist_album["label"])
+                    details["albumsartist.formatted"] += "%s %s [CR]" % (bullet, artist_album["label"])
                 else:
                     details["albumscompilations"].append(artist_album["label"])
                     details["albumscompilations.formatted"] += u"%s %s [CR]" % (bullet, artist_album["label"])
@@ -382,13 +384,13 @@ class MusicArtwork(object):
                         tr_title = album_track["title"]
                         if album_track["track"]:
                             tr_title = "%s. %s" % (album_track["track"], album_track["title"])
-                        details["tracks.formatted"] += u"%s %s [CR]" % (bullet, tr_title)
+                        details["tracks.formatted"] += "%s %s [CR]" % (bullet, tr_title)
                         duration = album_track["duration"]
                         total_seconds = int(duration)
-                        minutes = total_seconds / 60
+                        minutes = total_seconds // 60 % 60
                         seconds = total_seconds - (minutes * 60)
                         duration = "%s:%s" % (minutes, str(seconds).zfill(2))
-                        details["tracks.formatted2"] += u"%s %s (%s)[CR]" % (bullet, tr_title, duration)
+                        details["tracks.formatted2"] += "%s %s (%s)[CR]" % (bullet, tr_title, duration)
             details["albumcount"] = len(details["albums"])
             details["albumsartistcount"] = len(details["albumsartist"])
             details["albumscompilationscount"] = len(details["albumscompilations"])
@@ -421,7 +423,7 @@ class MusicArtwork(object):
                     bullet = "•"
                 else:
                     bullet = "•".decode("utf-8")
-                details["tracks.formatted"] = u""
+                details["tracks.formatted"] = ""
                 details["tracks.formatted2"] = ""
                 details["runtime"] = 0
                 for item in album_tracks:
@@ -429,7 +431,7 @@ class MusicArtwork(object):
                     details["tracks.formatted"] += u"%s %s [CR]" % (bullet, item["title"])
                     duration = item["duration"]
                     total_seconds = int(duration)
-                    minutes = total_seconds / 60
+                    minutes = total_seconds // 60 % 60
                     seconds = total_seconds - (minutes * 60)
                     duration = "%s:%s" % (minutes, str(seconds).zfill(2))
                     details["runtime"] += item["duration"]
@@ -441,7 +443,7 @@ class MusicArtwork(object):
                 details["songcount"] = len(album_tracks)
                 # get album total duration pretty printed as mm:ss
                 total_seconds = int(details["runtime"])
-                minutes = total_seconds / 60
+                minutes = total_seconds // 60 % 60
                 seconds = total_seconds - (minutes * 60)
                 details["duration"] = "%s:%s" % (minutes, str(seconds).zfill(2))
                 # do not retrieve artwork from item as there's no way to write it back
@@ -468,7 +470,6 @@ class MusicArtwork(object):
 
     def manual_set_music_artwork(self, details, mediatype):
         """manual override artwork options"""
-        from utils import manual_set_artwork
         if mediatype == "artist" and "artist" in details:
             header = "%s: %s" % (xbmc.getLocalizedString(13511), details["artist"])
         else:
@@ -570,6 +571,14 @@ class MusicArtwork(object):
                 artwork["thumbback"] = folderpath + item
             if item == "spine.jpg":
                 artwork["spine"] = folderpath + item
+            if item == "album3Dthumb.png":
+                artwork["album3Dthumb"] = folderpath + item
+            if item == "album3Dflat.png":
+                artwork["album3Dflat"] = folderpath + item
+            if item == "album3Dcase.png":
+                artwork["album3Dcase"] = folderpath + item
+            if item == "album3Dface.png":
+                artwork["album3Dface"] = folderpath + item
             elif item == "folder.jpg":
                 artwork["thumb"] = folderpath + item
         return artwork
@@ -672,7 +681,7 @@ class MusicArtwork(object):
 
         for splitter in ["ft.", " ft ", "feat.", "Now On Air: ", " and ", "feat", "featuring", "Ft.", "Feat.", "F.", "F/", "f/", " Ft ", "Featuring", " x ", " & ", "vs.", ","]:
             # replace splitter by kodi default splitter for easier split all later
-            artist = artist.replace(splitter, u"/")
+            artist = artist.replace(splitter, "/")
 
             # extract any featuring artists from trackname
             if splitter in track:

@@ -14,40 +14,35 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
-import re
+import re,urllib,urlparse
 
-try: from urlparse import parse_qs, urljoin
-except ImportError: from urllib.parse import parse_qs, urljoin
-try: from urllib import urlencode, quote_plus
-except ImportError: from urllib.parse import urlencode, quote_plus
-
-from six import ensure_text
-
-from resources.lib.modules import cleantitle, client, debrid, source_utils
+from resources.lib.modules import client
+from resources.lib.modules import debrid
+from resources.lib.modules import source_utils
 
 
-class source:
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
-        self.domains = ['300mbfilms.co', '300mbfilms.ws']
+        self.domains = ['300mbfilms.co']
         self.base_link = 'https://www.300mbfilms.ws'
         self.search_link = '/?s=%s'
 
     def movie(self, imdb, title, localtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'title': title, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
-        except Exception:
+        except:
             return
 
     def tvshow(self, imdb, tvdb, tvshowtitle, localtvshowtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'tvdb': tvdb, 'tvshowtitle': tvshowtitle, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
-        except Exception:
+        except:
             return
 
     def episode(self, url, imdb, tvdb, title, premiered, season, episode):
@@ -55,44 +50,40 @@ class source:
             if url is None:
                 return
 
-            url = parse_qs(url)
+            url = urlparse.parse_qs(url)
             url = dict([(i, url[i][0]) if url[i] else (i, '') for i in url])
             url['title'], url['premiered'], url['season'], url['episode'] = title, premiered, season, episode
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
-        except Exception:
+        except:
             return
 
     def sources(self, url, hostDict, hostprDict):
-        sources = []
         try:
-            if debrid.status() is False:
-                return sources
+            sources = []
 
             if url is None:
                 return sources
 
-            data = parse_qs(url)
+            if debrid.status() is False:
+                raise Exception()
+
+            data = urlparse.parse_qs(url)
             data = dict([(i, data[i][0]) if data[i] else (i, '') for i in data])
 
             title = data['tvshowtitle'] if 'tvshowtitle' in data else data['title']
 
             hdlr = 'S%02dE%02d' % (int(data['season']), int(data['episode'])) if 'tvshowtitle' in data else data['year']
 
-            query = '%s S%02dE%02d' % (
-                data['tvshowtitle'],
-                int(data['season']),
-                int(data['episode'])) if 'tvshowtitle' in data else '%s %s' % (
-                data['title'],
-                data['year'])
+            query = '%s s%02de%02d' % (data['tvshowtitle'], int(data['season']), int(data['episode'])) if 'tvshowtitle' in data else '%s %s' % (data['title'], data['year'])
             query = re.sub('(\\\|/| -|:|;|\*|\?|"|\'|<|>|\|)', ' ', query)
 
-            url = self.search_link % quote_plus(query)
-            url = urljoin(self.base_link, url)
+            url = self.search_link % urllib.quote_plus(query)
+            url = urlparse.urljoin(self.base_link, url)
 
             r = client.request(url)
 
-            posts = re.findall('<h2 class="title">(.+?)</h2>', r, re.IGNORECASE)
+            posts = client.parseDOM(r, 'h2')
 
             hostDict = hostprDict + hostDict
 
@@ -100,49 +91,42 @@ class source:
             for item in posts:
 
                 try:
-                    link, name = re.findall('href="(.+?)" title="(.+?)"', item, re.IGNORECASE)[0]
-                    if not cleantitle.get(title) in cleantitle.get(name):
+                    item = re.compile('a href="(.+?)"').findall(item)
+                    name = item[0]
+                    query = query.replace(" ", "-").lower()
+                    if query not in name:
                         continue
                     name = client.replaceHTMLCodes(name)
-                    try: _name = name.lower().replace('permalink to', '')
-                    except: _name = name
 
-                    quality, info = source_utils.get_release_quality(name, link)
+                    quality, info = source_utils.get_release_quality(name, item[0])
+                    if any(x in quality for x in ['CAM', 'SD']):
+                        continue
 
-                    try:
-                        size = re.findall('((?:\d+\.\d+|\d+\,\d+|\d+)\s*(?:GB|GiB|MB|MiB))', name)[-1]
-                        dsize, isize = source_utils._size(size)
-                    except Exception:
-                        dsize, isize = 0.0, ''
-                    info.insert(0, isize)
-
-                    info = ' | '.join(info)
-
-                    links = self.links(link)
+                    url = item
+                    links = self.links(url)
                     urls += [(i, quality, info) for i in links]
-                except Exception:
+
+                except:
                     pass
 
             for item in urls:
                 if 'earn-money' in item[0]:
                     continue
-
                 if any(x in item[0] for x in ['.rar', '.zip', '.iso']):
                     continue
                 url = client.replaceHTMLCodes(item[0])
-                #url = url.encode('utf-8')
-                url = ensure_text(url)
+                url = url.encode('utf-8')
 
                 valid, host = source_utils.is_host_valid(url, hostDict)
                 if not valid:
                     continue
                 host = client.replaceHTMLCodes(host)
-                #host = host.encode('utf-8')
-                host = ensure_text(host)
+                host = host.encode('utf-8')
 
-                sources.append({'source': host, 'quality': item[1], 'language': 'en', 'url': url, 'info': item[2], 'direct': False, 'debridonly': True, 'size': dsize, 'name': _name})
+                sources.append({'source': host, 'quality': item[1], 'language': 'en', 'url': url, 'direct': False, 'debridonly': True})
+
             return sources
-        except Exception:
+        except:
             return sources
 
     def links(self, url):
@@ -150,39 +134,31 @@ class source:
         try:
             if url is None:
                 return
+            for url in url:
+                r = client.request(url)
+                r = client.parseDOM(r, 'div', attrs={'class': 'entry'})
+                r = client.parseDOM(r, 'a', ret='href')
+                r1 = [i for i in r if 'money' in i][0]
+                r = client.request(r1)
+                r = client.parseDOM(r, 'div', attrs={'id': 'post-\d+'})[0]
 
-            r = client.request(url)
-            r = client.parseDOM(r, 'div', attrs={'class': 'entry'})
-            r = client.parseDOM(r, 'a', ret='href')
-            r1 = [i for i in r if 'money' in i][0]
-            r = client.request(r1)
-            r = client.parseDOM(r, 'div', attrs={'id': 'post-\d+'})[0]
+                if 'enter the password' in r:
+                    plink= client.parseDOM(r, 'form', ret='action')[0]
 
-            if 'enter the password' in r:
-                plink = client.parseDOM(r, 'form', ret='action')[0]
-
-                post = {'post_password': '300mbfilms', 'Submit': 'Submit'}
-                send_post = client.request(plink, post=post, output='cookie')
-                link = client.request(r1, cookie=send_post)
-            else:
-                link = client.request(r1)
-
-            link = re.findall('<strong>Single(.+?)</tr', link, re.DOTALL)[0]
-            link = client.parseDOM(link, 'a', ret='href')
-            for i in link:
-                if 'earn-money-onlines.info' in i:
-                    trim = i.replace('protector1.php', 'protector.php')
-                    r = client.request(trim)
-                    filter_links = re.compile('<center> <a href="(.+?)"').findall(r)
-                    for i in filter_links:
-                        if any(x in i for x in ['uptobox', 'clicknupload']):
-                            continue
-                        urls.append(i)
+                    post = {'post_password': '300mbfilms', 'Submit': 'Submit'}
+                    send_post = client.request(plink, post=post, output='cookie')
+                    link = client.request(r1, cookie=send_post)
                 else:
+                    link = client.request(r1)
+
+                link = re.findall('<strong>Single(.+?)</tr', link, re.DOTALL)[0]
+                link = client.parseDOM(link, 'a', ret='href')
+                link = [(i.split('=')[-1]) for i in link]
+                for i in link:
                     urls.append(i)
 
-            return urls
-        except Exception:
+                return urls
+        except:
             pass
 
     def resolve(self, url):

@@ -23,10 +23,12 @@
 '''
 
 import sys
-import simplejson as json
-import re
 import base64
-from six.moves import urllib_parse
+import json
+import random
+import re
+import urllib
+ 
 from resources.lib.modules import client
 from resources.lib.modules import control
  
@@ -50,9 +52,8 @@ class trailer:
             if not title: title = control.infoLabel('ListItem.Label')
             icon = control.infoLabel('ListItem.Icon')
  
-            item = control.item(label=name, path=url)
-            item.setArt({'icon': icon, 'thumb': icon, 'poster': icon})
-            item.setInfo(type="video", infoLabels={"title": name})
+            item = control.item(label=name, iconImage=icon, thumbnailImage=icon, path=url)
+            item.setInfo(type="Video",infoLabels={ "Title":name})
  
             item.setProperty('IsPlayable','true')
             control.resolve(handle=int(sys.argv[1]), succeeded=True, listitem=item)
@@ -66,7 +67,7 @@ class trailer:
                 # Same behaviour as the fullscreenvideo window when :
                 # the media plays to the end,
                 # or the user pressed one of X, ESC, or Backspace keys on the keyboard/remote to stop playback.
-                control.execute("Dialog.Close(%s, true)" % control.getCurrentDialogId)
+                control.execute("Dialog.Close(%s, true)" % control.getCurrentDialogId)      
         except:
             pass
  
@@ -85,7 +86,7 @@ class trailer:
                 raise Exception()
         except:
             query = name + ' trailer'
-            query = self.search_link % urllib_parse.quote_plus(name)
+            query = self.search_link % urllib.quote_plus(query)
             return self.search(query)
  
     def search(self, url):
@@ -96,25 +97,10 @@ class trailer:
                 url += "&relevanceLanguage=%s" % apiLang
  
             result = client.request(url)
-            result = control.six_decode(result)
-
-            json_items = json.loads(result).get('items', [])
-            items = [i.get('id', {}).get('videoId') for i in json_items]
-
-            if self.mode == '1':
-                labels = [i.get('snippet', {}).get('title') for i in json_items]
-                labels = [client.replaceHTMLCodes(i) for i in labels]
-                select = control.selectDialog(labels, control.lang(32121))
-                if select == -1: return
-                items = [items[select]]
-
-            elif self.mode == '2':
-                if self.content in ['seasons', 'episodes']:
-                    labels = [i.get('snippet', {}).get('title') for i in json_items]
-                    labels = [client.replaceHTMLCodes(i) for i in labels]
-                    select = control.selectDialog(labels, control.lang(32121))
-                    if select == -1: return
-                    items = [items[select]]
+ 
+            items = json.loads(result).get('items', [])
+            items = [i.get('id', {}).get('videoId') for i in items]
+ 
             for vid_id in items:
                 url = self.resolve(vid_id)
                 if url:

@@ -16,103 +16,51 @@
 '''
 
 import re
-
-try: from urlparse import parse_qs, urljoin
-except ImportError: from urllib.parse import parse_qs, urljoin
-try: from urllib import urlencode
-except ImportError: from urllib.parse import urlencode
-
-from six import ensure_text
-
-from resources.lib.modules import cleantitle, client, log_utils, source_utils
+import urlparse
 
 
+from resources.lib.modules import cleantitle, client, log_utils, source_utils, cfscrape
 
-class source:
+
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
-        self.domains = ['filmxy.me', 'filmxy.one']
-        self.base_link = 'https://www.filmxy.tv/'
-        self.search_link = 'search/%s/feed/rss2/'
-        self.post = 'https://cdn.filmxy.one/asset/json/posts.json'
+        self.domains = ['filmxy.me', 'filmxy.one', 'filmxy.ws', 'filmxy.live']
+        self.base_link = 'https://www.filmxy.nl'
+        self.search_link = '/%s-%s'
+        self.scraper = cfscrape.create_scraper()
 
     def movie(self, imdb, title, localtitle, aliases, year):
         try:
-            url = {'imdb': imdb, 'title': title, 'year': year}
-            url = urlencode(url)
+            title = cleantitle.geturl(title)
+            url = urlparse.urljoin(self.base_link, (self.search_link % (title, year)))
             return url
         except Exception:
             return
 
     def sources(self, url, hostDict, hostprDict):
-        sources = []
         try:
-            if url is None: return
-            data = parse_qs(url)
-            data = dict((i, data[i][0]) for i in data)
-            title = data['title']
-            year = data['year']
+            sources = []
 
-            tit = cleantitle.geturl(title + ' ' + year)
-            query = urljoin(self.base_link, tit)
-
-           
-            r = client.request(query, referer=self.base_link, redirect=True)
-            if not data['imdb'] in r:
+            if url is None:
                 return sources
+            headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; Win64; x64; rv:65.0) Gecko/20100101 Firefox/65.0'}
+            result = self.scraper.get(url, headers=headers).content
+            streams = re.compile('data-player="&lt;[A-Za-z]{6}\s[A-Za-z]{3}=&quot;(.+?)&quot;', re.DOTALL).findall(result)
 
-            links = []
+            for link in streams:
+                quality = source_utils.check_sd_url(link)
+                host = link.split('//')[1].replace('www.', '')
+                host = host.split('/')[0].lower()
 
-            try:
-                down = client.parseDOM(r, 'div', attrs={'id': 'tab-download'})[0]
-                down = client.parseDOM(down, 'a', ret='href')[0]
-                data = client.request(down)
-                frames = client.parseDOM(data, 'div', attrs={'class': 'single-link'})
-                frames = [client.parseDOM(i, 'a', ret='href')[0] for i in frames if i]
-                for i in frames:
-                    links.append(i)
+                if quality == 'SD':
+                    sources.append({'source': host, 'quality': '720p', 'language': 'en', 'url': link, 'direct': False, 'debridonly': False})
+                else:
+                    sources.append({'source': host, 'quality': quality, 'language': 'en', 'url': link, 'direct': False, 'debridonly': False})
 
-            except Exception:
-                pass
-            try:
-                streams = client.parseDOM(r, 'div', attrs={'id': 'tab-stream'})[0]
-                streams = re.findall(r'''iframe src=(.+?) frameborder''', streams.replace('&quot;', ''),
-                                     re.I | re.DOTALL)
-                for i in streams:
-                    links.append(i)
-            except Exception:
-                pass
-
-            for url in links:
-                try:
-                    valid, host = source_utils.is_host_valid(url, hostDict)
-                    if not valid:
-                        valid, host = source_utils.is_host_valid(url, hostprDict)
-                        if not valid:
-                            continue
-                        else:
-                            rd = True
-                    else:
-                        rd = False
-                    #quality, _ = source_utils.get_release_quality(url, url)
-                    quality = '720p'
-                    host = client.replaceHTMLCodes(host)
-                    host = ensure_text(host)
-                    if rd:
-                        sources.append(
-                            {'source': host, 'quality': quality, 'language': 'en', 'url': url,
-                             'direct': False,
-                             'debridonly': True})
-                    else:
-                        sources.append(
-                            {'source': host, 'quality': quality, 'language': 'en', 'url': url,
-                             'direct': False,
-                             'debridonly': False})
-                except Exception:
-                    pass
             return sources
-        except:
+        except Exception:
             return sources
 
     def resolve(self, url):

@@ -37,7 +37,7 @@ def get_moviesetdetails(metadatautils, title, set_id):
         details = extend_dict(details, get_kodidb_setdata(metadatautils, set_id))
         if not details.get("plot"):
             details["plot"] = details["plots"]
-        details["extendedplot"] = details["titles"] + u"[CR]" + details["plot"]
+        details["extendedplot"] = details["titles"] + "[CR]" + details["plot"]
         all_fanarts = details["art"]["fanarts"]
         efa_path = "plugin://script.skin.helper.service/?action=extrafanart&fanarts=%s" % quote_plus(repr(all_fanarts))
         details["art"]["extrafanart"] = efa_path
@@ -93,7 +93,7 @@ def get_kodidb_setdata(metadatautils, set_id):
         for label in ["label", "plot", "year", "rating"]:
             details['%s.%s' % (count, label)] = item[label]
         details["%s.DBID" % count] = item["movieid"]
-        details["%s.duration" % count] = item['runtime'] / 60
+        details["%s.duration" % count] = item['runtime'] // 60
 
         # art labels
         art = item['art']
@@ -165,8 +165,8 @@ def get_kodidb_setdata(metadatautils, set_id):
     else:
         details["extendedplots"] = plot
     details["titles"] = title_list
-    details["runtime"] = runtime / 60
-    details.update(get_duration(runtime / 60))
+    details["runtime"] = runtime // 60
+    details.update(get_duration(runtime // 60))
     details["writer"] = writer
     details["director"] = director
     details["genre"] = genre

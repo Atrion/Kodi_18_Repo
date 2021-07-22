@@ -8,7 +8,7 @@ if sys.version_info.major == 3:
     from .utils import DialogSelect, requests, log_exception
 else:
     from utils import DialogSelect, requests, log_exception
-import bs4 as BeautifulSoup
+import BeautifulSoup
 import xbmc
 import xbmcvfs
 import xbmcgui
@@ -73,10 +73,10 @@ class GoogleImages(object):
             html = requests.get('https://www.google.com/search', headers=headers, params=params, timeout=5).text
         except Exception as exc:
             log_exception(__name__, exc)
-        soup = BeautifulSoup.BeautifulSoup(html)
+        soup = BeautifulSoup.BeautifulSoup(html, features="html.parser")
         results = []
         for div in soup.findAll('div'):
-            if div.get("id") == "images":
+            if not div.get("id") == "images":
                 for a_link in div.findAll("a"):
                     page = a_link.get("href")
                     try:

@@ -1083,14 +1083,14 @@ v5.0.15 (2016-11-26) by amet
 
 <addon id="script.module.metadatautils"
        name="Metadata and Artwork module"
-       version="1.0.35"
+       version="1.0.40"
        provider-name="marcelveldt and others">
     <requires>
-        <!-- <import addon="xbmc.python" version="3.0.0"/> -->
+        <import addon="xbmc.python" version="2.24.0"/>
         <import addon="script.module.requests" version="2.3.0"/>
-        <import addon="script.module.beautifulsoup4" version="4.0.0" />
+        <import addon="script.module.beautifulsoup" version="3.0.8" />
         <import addon="script.module.thetvdb" version="0.0.1" />
-        <import addon="script.module.musicbrainz" version="0.0.1"/>
+        <import addon="script.module.musicbrainz" version="0.0.1" />
         <import addon="script.module.simplecache" version="1.0.0"/>
         <import addon="script.module.arrow" version="0.6.0"/>
     </requires>
@@ -1101,6 +1101,23 @@ v5.0.15 (2016-11-26) by amet
         <description lang="en">The metadata and artwork module for Kodi provides rich metadata, including artwork for various metatypes by scraping (and caching) this information from sites like TMDB, musicbrainz and fanart.tv. This product uses the TMDb API but is not endorsed or certified by TMDb.</description>
 		<description lang="es">El módulo de metadatos e ilustraciones para Kodi proporciona metadatos enriquecidos, que incluyen ilustraciones paravarios metatipos al raspar (y almacenar en caché) esta información se extrae de sitios como TMDB, musicbrainz and fanart.tv.[CR][CR]Este producto utiliza la API de TMDb pero no está avalado ni certificado por TMDb</description>
         <news>
+v1.0.40
+- Fix for missing TADB key
+v1.0.39
+- Remove unicode
+- Fix for break site Kyradb
+- Add support for TADB encoding Ascii key
+- Add new info for TMDB (number_of_seasons, number_of_episodes and Seasons)
+v1.0.38
+- fix for error 'sys' is not defined for extrafanart
+- fix for google
+- fix for colecting imdb.250 (movie and tv)
+- add new rotentomatoes info from omdb
+v1.0.37
+- Smal fix for theaudiodb scraper
+v1.0.36
+- Fix for theaudiodb scraper,Add some new Art thumb and label
+
 v1.0.35 (wuff)
 - Remove BeautifulSoup3 dependency and use BeautifulSoup4 on Kodi 18 and 19 instead
 
@@ -1425,6 +1442,49 @@ Observera: Ett "Fast" arkiv kräver en komplett uppackning av arkivet. Därför 
     <website>https://github.com/jaraco/backports.functools_lru_cache</website>
     <source>https://github.com/Razzeee/script.module.backports.functools_lru_cache</source>
   </extension>
+</addon>
+
+<addon id="service.subtitles.rvm.addic7ed"
+  name="Addic7ed.com"
+  version="3.1.6"
+  provider-name="Roman V.M.">
+<requires>
+  <import addon="xbmc.python" version="2.25.0"/>
+  <import addon="script.module.beautifulsoup4"/>
+  <import addon="script.module.html5lib"/>
+  <import addon="script.module.requests"/>
+  <import addon="script.module.six"/>
+  <import addon="script.module.kodi-six"/>
+  <!--<import addon="script.module.web-pdb"/>-->
+</requires>
+<extension point="xbmc.subtitle.module" library="main.py" />
+<extension point="xbmc.addon.metadata">
+  <summary lang="en_GB">Addic7ed.com Subtitles</summary>
+  <summary lang="ru_RU">Субтитры Addic7ed.com</summary>
+  <summary lang="uk_UA">Субтитри Addic7ed.com</summary>
+  <summary lang="fr_FR">Sous-titres Addic7ed.com</summary>
+  <summary lang="nl_NL">Addic7ed.com Ondertitels</summary>
+  <description lang="en_GB">Subtitles service for Addic7ed.com. It supports only TV shows.</description>
+  <description lang="ru_RU">Служба субтитров для сайта Addic7ed.com. Служба поддерживает только сериалы.</description>
+  <description lang="uk_UA">Служба субтитрів для сайту Addic7ed.com. Служба підтримує лише серіали.</description>
+  <description lang="fr_FR">Service de sous-titres pour Addic7ed.com. Fonctionne uniquement pour les séries TV.</description>
+  <description lang="nl_NL">Ondertiteling dienst voor Addic7ed.com. Ondersteunt enkel TV series.</description>
+  <platform>all</platform>
+  <source>https://github.com/romanvm/service.addic7ed</source>
+  <website>www.addic7ed.com</website>
+  <license>GPL-3.0-only</license>
+  <assets>
+    <icon>icon.png</icon>
+    <fanart>fanart.jpg</fanart>
+  </assets>
+  <news>3.1.6:
+- Fixed compatibility with Kodi 20 "Nexus".
+- Various internal changes.
+
+3.1.5:
+- Fixed a crash when downloading subs for the first time after installing the addon.</news>
+  <reuselanguageinvoker>false</reuselanguageinvoker>
+</extension>
 </addon>
 
 <addon id="metadata.themoviedb.org"
@@ -1786,7 +1846,7 @@ Observera: Ett "Fast" arkiv kräver en komplett uppackning av arkivet. Därför 
   </extension>
 </addon>
 
-    <addon id="repository.Atrion18B" name="[COLOR darkgreen]Atrion's Repo for Kodi 18.x Backup[/COLOR]" version="0.7.5" provider-name="Atrion Darnay">
+    <addon id="repository.Atrion18B" name="[COLOR darkgreen]Atrion's Repo for Kodi 18.x Backup[/COLOR]" version="0.7.6" provider-name="Atrion Darnay">
         <requires>
             <import addon="xbmc.addon" version="12.0.0"/>
         </requires>
@@ -2017,7 +2077,7 @@ Observera: Ett "Fast" arkiv kräver en komplett uppackning av arkivet. Därför 
 	</extension>
 </addon>
 
-    <addon id="repository.Atrion18" name="[COLOR darkgreen]Atrion's Repo for Kodi 18.x[/COLOR]" version="0.7.5" provider-name="Atrion Darnay">
+    <addon id="repository.Atrion18" name="[COLOR darkgreen]Atrion's Repo for Kodi 18.x[/COLOR]" version="0.7.6" provider-name="Atrion Darnay">
         <requires>
             <import addon="xbmc.addon" version="12.0.0"/>
         </requires>
@@ -2155,7 +2215,7 @@ Observera: Ett "Fast" arkiv kräver en komplett uppackning av arkivet. Därför 
   </extension>
 </addon>
 
-<addon id="script.module.inputstreamhelper" name="InputStream Helper" version="0.5.6" provider-name="emilsvennesson, dagwieers, mediaminister, horstle">
+<addon id="script.module.inputstreamhelper" name="InputStream Helper" version="0.5.7" provider-name="emilsvennesson, dagwieers, mediaminister, horstle">
   <requires>
     <!--py3 compliant-->
     <import addon="xbmc.python" version="2.25.0"/>
@@ -2179,7 +2239,10 @@ Observera: Ett "Fast" arkiv kräver en komplett uppackning av arkivet. Därför 
     <description lang="fr_FR">Un simple module Kodi qui simplifie la vie des développeurs de modules complémentaires en s’appuyant sur des modules complémentaires basés sur InputStream et sur la lecture de DRM.</description>
     <description lang="es_ES">Un módulo Kodi simple que hace la vida más fácil para los desarrolladores de complementos que dependen de complementos basados en InputStream y reproducción de DRM.</description>
     <news>
-### v0.5.6 (2021-06-24)
+v0.5.7 (2021-07-02)
+- Further improve Widevine CDM installation on ARM hardware
+
+v0.5.6 (2021-06-24)
 - Improve Widevine CDM installation on ARM hardware
 - Postpone Widevine CDM updates when user rejects
 
@@ -2807,9 +2870,9 @@ Supported formats are:
   </extension>
 </addon>
 
-<addon id="script.module.thecrew" name="[COLOR orchid]THE CREW MODULE[/COLOR]" version="1.0.3" provider-name="The Crew">
+<addon id="script.module.thecrew" name="[COLOR orchid]THE CREW MODULE[/COLOR]" version="1.0.5" provider-name="The Crew">
     <requires>
-        <!--<import addon="xbmc.python" version="2.25.0" />-->
+        <import addon="xbmc.python" version="2.25.0"/>
         <import addon="script.module.beautifulsoup4"/>
     </requires>
     <extension point="xbmc.python.module" library="lib" />
@@ -3074,6 +3137,29 @@ Supported formats are:
   </extension>
 </addon>
 
+<addon id="script.module.html5lib"
+       name="html5lib-python"
+       version="0.999.0"
+       provider-name="html5lib">
+  <requires>
+    <import addon="xbmc.python"
+    		version="2.1.0"/>
+    <import addon="script.module.six"
+                      version="1.4.1"
+                     optional="false"/>
+  </requires>
+  <extension point="xbmc.python.module"
+             library="lib" />
+  <extension point="xbmc.addon.metadata">
+    <summary>Standards-compliant library for parsing and serializing HTML documents and fragments in Python.</summary>
+    <description>html5lib is a pure-python library for parsing HTML. It is designed to conform to the WHATWG HTML specification, as is implemented by all major web browsers.</description>
+    <platform>all</platform>
+    <license>MIT</license>
+    <source>https://github.com/html5lib/html5lib-python.git</source>
+    <website>https://github.com/html5lib/html5lib-python</website>
+  </extension>
+</addon>
+
 <addon id="resource.images.skinbackgrounds.titanium" name="Skin Backgrounds - Titanium" version="1.0.0" provider-name="marcelveldt">
 	<extension point="kodi.resource.images" compile="false" type="skinbackgrounds" />
 	<requires>
@@ -3226,7 +3312,7 @@ Supported formats are:
 
 <addon id="metadata.common.themoviedb.org"
        name="The Movie Database Scraper Library"
-       version="3.2.14"
+       version="3.2.17"
        provider-name="Team Kodi">
   <requires>
     <import addon="xbmc.metadata" version="2.1.0"/>
@@ -3369,7 +3455,7 @@ v0.28.0 (2020-02-08)
 	</extension>
 </addon>
 
-<addon id="script.module.resolveurl" name="ResolveURL" version="5.1.34" provider-name="gujal">
+<addon id="script.module.resolveurl" name="ResolveURL" version="5.1.35" provider-name="gujal">
     <requires>
         <!-- <import addon="xbmc.python" version="3.0.0" /> -->
         <import addon="script.module.six" />

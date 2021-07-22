@@ -15,20 +15,13 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import re, base64
-
-from six import ensure_text
-
-try: from urlparse import parse_qs, urljoin
-except ImportError: from urllib.parse import parse_qs, urljoin
-try: from urllib import urlencode, quote_plus, quote
-except ImportError: from urllib.parse import urlencode, quote_plus, quote
+import re, urlparse, urllib, base64
 
 from resources.lib.modules import client, cleantitle
 from resources.lib.modules import cfscrape
 
 
-class source:
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
@@ -39,7 +32,7 @@ class source:
     def movie(self, imdb, title, localtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'title': title, 'year': year, 'aliases': aliases}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -47,7 +40,7 @@ class source:
     def tvshow(self, imdb, tvdb, tvshowtitle, localtvshowtitle, aliases, year):
         try:
             url = {'imdb': imdb, 'tvdb': tvdb, 'tvshowtitle': tvshowtitle, 'year': year}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -56,10 +49,10 @@ class source:
         try:
             if url is None: return
 
-            url = parse_qs(url)
+            url = urlparse.parse_qs(url)
             url = dict([(i, url[i][0]) if url[i] else (i, '') for i in url])
             url['title'], url['premiered'], url['season'], url['episode'] = title, premiered, season, episode
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -69,16 +62,16 @@ class source:
             sources = []   
             if url is None: return sources
 
-            data = parse_qs(url)
+            data = urlparse.parse_qs(url)
             data = dict([(i, data[i][0]) if data[i] else (i, '') for i in data])
 
             title = data['tvshowtitle'] if 'tvshowtitle' in data else data['title']
             hdlr = 'S%02dE%02d' % (int(data['season']), int(data['episode'])) if 'tvshowtitle' in data else data['year']
             query = '%s season %d' % (title, int(data['season'])) if 'tvshowtitle' in data else data['title']
             query = re.sub('(\\\|/| -|:|;|\*|\?|"|\'|<|>|\|)', ' ', query)
-            query = quote_plus(query)
+            query = urllib.quote_plus(query)
 
-            url = urljoin(self.base_link, self.search_link % query)
+            url = urlparse.urljoin(self.base_link, self.search_link % query)
 
             self.s = cfscrape.create_scraper()
 
@@ -104,12 +97,12 @@ class source:
             r = self.s.get(link, headers=self.ua).content
             try:
                 v = re.findall('document.write\(Base64.decode\("(.+?)"\)', r)[0]
-                b64 = base64.b64decode(v).decode('utf-8')
+                b64 = base64.b64decode(v)
                 url = client.parseDOM(b64, 'iframe', ret='src')[0]
                 try:
                     host = re.findall('([\w]+[.][\w]+)$', urlparse.urlparse(url.strip().lower()).netloc)[0]
                     host = client.replaceHTMLCodes(host)
-                    host = ensure_text(host)
+                    host = host.encode('utf-8')
                     sources.append({
                         'source': host,
                         'quality': 'SD',
@@ -131,7 +124,7 @@ class source:
                         host = re.sub('Server|Link\s*\d+', '', i[1]).lower()
                         url = i[0]
                         host = client.replaceHTMLCodes(host)
-                        host = ensure_text(host)
+                        host = host.encode('utf-8')
                         if 'other' in host: continue
                         sources.append({
                             'source': host,
@@ -152,7 +145,7 @@ class source:
             try:
                 r = self.s.get(url, headers=self.ua).text
                 v = re.findall('document.write\(Base64.decode\("(.+?)"\)', r)[0]
-                b64 = ensure_text(v)
+                b64 = v.decode('base64')
                 url = client.parseDOM(b64, 'iframe', ret='src')[0]
             except:
                 r = self.s.get(url, headers=self.ua)

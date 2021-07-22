@@ -291,7 +291,7 @@ def get_duration(duration):
         if total_minutes < 60:
             hours = 0
         else:
-            hours = total_minutes / 60
+            hours = total_minutes  // 60 % 60
         minutes = total_minutes - (hours * 60)
         formatted_time = "%s:%s" % (hours, str(minutes).zfill(2))
     except Exception as exc:
@@ -515,7 +515,7 @@ def detect_plugin_content(plugin_path):
         content_type = "movies"
     # if we didn't get the content based on the path, we need to probe the addon...
     if not content_type and not xbmc.getCondVisibility("Window.IsMedia"):  # safety check
-        from kodidb import KodiDb
+        from .kodidb import KodiDb
         media_array = KodiDb().files(plugin_path, limits=(0, 1))
         for item in media_array:
             if item.get("filetype", "") == "directory":
@@ -601,6 +601,14 @@ def download_artwork(folderpath, artwork):
                 new_dict[key] = download_image(os.path.join(folderpath, "thumbback.jpg"), value)
             elif key == "spine":
                 new_dict[key] = download_image(os.path.join(folderpath, "spine.jpg"), value)
+            elif key == "album3Dthumb":
+                new_dict[key] = download_image(os.path.join(folderpath, "album3Dthumb.png"), value)
+            elif key == "album3Dflat":
+                new_dict[key] = download_image(os.path.join(folderpath, "album3Dflat.png"), value)
+            elif key == "album3Dcase":
+                new_dict[key] = download_image(os.path.join(folderpath, "album3Dcase.png"), value)
+            elif key == "album3Dface":
+                new_dict[key] = download_image(os.path.join(folderpath, "album3Dface.png"), value)
             elif key == "fanarts" and value:
                 # copy extrafanarts only if the directory doesn't exist at all
                 delim = "\\" if "\\" in folderpath else "/"
@@ -741,7 +749,7 @@ def manual_set_artwork(artwork, mediatype, header=None):
     if mediatype == "artist":
         art_types = ["thumb", "poster", "fanart", "banner", "clearart", "clearlogo", "landscape"]
     elif mediatype == "album":
-        art_types = ["thumb", "discart", "thumbback", "spine"]
+        art_types = ["thumb", "discart", "thumbback", "spine", "album3Dthumb", "album3Dflat", "album3Dcase", "album3Dface"]
     else:
         art_types = ["thumb", "poster", "fanart", "banner", "clearart",
                      "clearlogo", "discart", "landscape", "characterart"]

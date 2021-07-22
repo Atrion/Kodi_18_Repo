@@ -2,16 +2,11 @@
 # -Cleaned and Checked on 04-14-2020 by Tempest.
 
 import re
-import simplejson as json
+import urllib
+import urlparse
+import json
 import base64
 import time
-
-try: from urlparse import parse_qs, urljoin
-except ImportError: from urllib.parse import parse_qs, urljoin
-try: from urllib import urlencode, unquote_plus, quote
-except ImportError: from urllib.parse import urlencode, unquote_plus, quote
-
-import six
 
 from resources.lib.modules import cleantitle
 from resources.lib.modules import client
@@ -19,8 +14,7 @@ from resources.lib.modules import directstream
 from resources.lib.modules import source_utils
 
 
-
-class source:
+class s0urce:
     def __init__(self):
         self.priority = 1
         self.language = ['en']
@@ -31,7 +25,7 @@ class source:
         try:
             aliases.append({'country': 'us', 'title': title})
             url = {'imdb': imdb, 'title': title, 'year': year, 'aliases': aliases}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -40,7 +34,7 @@ class source:
         try:
             aliases.append({'country': 'us', 'title': tvshowtitle})
             url = {'imdb': imdb, 'tvdb': tvdb, 'tvshowtitle': tvshowtitle, 'year': year, 'aliases': aliases}
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -49,10 +43,10 @@ class source:
         try:
             if url is None:
                 return
-            url = parse_qs(url)
+            url = urlparse.parse_qs(url)
             url = dict([(i, url[i][0]) if url[i] else (i, '') for i in url])
             url['title'], url['premiered'], url['season'], url['episode'] = title, premiered, season, episode
-            url = urlencode(url)
+            url = urllib.urlencode(url)
             return url
         except:
             return
@@ -93,7 +87,7 @@ class source:
             if url is None:
                 return sources
 
-            data = parse_qs(url)
+            data = urlparse.parse_qs(url)
             data = dict([(i, data[i][0]) if data[i] else (i, '') for i in data])
             title = data['tvshowtitle'] if 'tvshowtitle' in data else data['title']
             imdb = data['imdb']
@@ -110,12 +104,8 @@ class source:
             if imdb not in r[0]:
                 raise Exception()
 
-            try:
-                cookie = r[4]
-                headers = r[3]
-            except:
-                cookie = r[3]
-                headers = r[2]
+            cookie = r[4]
+            headers = r[3]
             result = r[0]
 
             try:
@@ -132,25 +122,24 @@ class source:
 
             try: auth = re.findall('__utmx=(.+)', cookie)[0].split(';')[0]
             except: auth = 'false'
-            auth = 'Bearer %s' % unquote_plus(auth)
+            auth = 'Bearer %s' % urllib.unquote_plus(auth)
             headers['Authorization'] = auth
             headers['Referer'] = url
 
             u = '/ajax/vsozrflxcw.php'
             self.base_link = client.request(self.base_link, headers={'User-Agent': client.agent()}, output='geturl')
-            u = urljoin(self.base_link, u)
+            u = urlparse.urljoin(self.base_link, u)
 
             action = 'getEpisodeEmb' if '/episode/' in url else 'getMovieEmb'
 
-            tim = str(int(time.time())) if six.PY2 else six.ensure_binary(str(int(time.time())))
-            elid = quote(base64.encodestring(tim)).strip()
+            elid = urllib.quote(base64.encodestring(str(int(time.time()))).strip())
 
             token = re.findall("var\s+tok\s*=\s*'([^']+)", result)[0]
 
             idEl = re.findall('elid\s*=\s*"([^"]+)', result)[0]
 
             post = {'action': action, 'idEl': idEl, 'token': token, 'nopop': '', 'elid': elid}
-            post = urlencode(post)
+            post = urllib.urlencode(post)
             cookie += ';%s=%s' % (idEl, elid)
             headers['Cookie'] = cookie
 
